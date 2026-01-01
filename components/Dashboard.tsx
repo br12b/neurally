@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, useAnimation, animate, AnimatePresence } from 'framer-motion';
-import { Zap, Trophy, ArrowRight, Sparkles, Plus, Loader2, Brain, Activity, Search, Users, Network, Globe, Terminal, Cpu, FileUp, UploadCloud, FileType } from 'lucide-react';
+import { Zap, Trophy, ArrowRight, Sparkles, Plus, Loader2, Brain, Activity, Search, Users, Network, Globe, Terminal, Cpu, FileUp, UploadCloud, FileType, AlertTriangle } from 'lucide-react';
 import { Type, Schema } from "@google/genai";
-import { createAIClient } from '../utils/ai'; // Updated Import
+import { createAIClient } from '../utils/ai'; 
 import { Question, User, Language } from '../types';
 import { translations } from '../utils/translations';
 import Marquee from './ui/Marquee';
@@ -39,6 +39,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputText, setInputText] = useState("");
   const [isDragging, setIsDragging] = useState(false); // Drag state
+  const [errorState, setErrorState] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +75,8 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
     }
 
     setIsProcessing(true);
+    setErrorState(null);
+
     try {
       // Use centralized client
       const ai = createAIClient();
@@ -133,9 +136,17 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       } else {
           throw new Error("No text returned from AI");
       }
-    } catch (error) {
-      console.error(error);
-      alert("Error generating questions. Please try again.");
+    } catch (error: any) {
+      console.error("Gemini API Error:", error);
+      let msg = "Beklenmeyen bir hata oluştu.";
+      if (error.message?.includes("403") || error.toString().includes("Permission denied")) {
+          msg = "ERİŞİM REDDEDİLDİ: API Anahtarınızın domain kısıtlamalarını Google AI Studio üzerinden kontrol edin. Bu domain (Vercel) izinli listesinde olmayabilir.";
+      } else if (error.message?.includes("400")) {
+          msg = "İSTEK HATASI: Gönderilen içerik işlenemedi.";
+      } else if (error.message?.includes("fetch")) {
+          msg = "BAĞLANTI HATASI: İnternet bağlantınızı veya API servisini kontrol edin.";
+      }
+      setErrorState(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -286,6 +297,23 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                  <span className="text-[10px] font-mono text-gray-400">{inputText.length} chars</span>
              </div>
 
+             {/* ERROR DISPLAY */}
+             <AnimatePresence>
+                 {errorState && (
+                     <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mb-4 bg-red-50 border border-red-200 p-4 rounded-lg flex items-start gap-3"
+                     >
+                        <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                        <div className="text-xs text-red-700 font-mono">
+                            <span className="font-bold">SYSTEM ERROR:</span> {errorState}
+                        </div>
+                     </motion.div>
+                 )}
+             </AnimatePresence>
+
              {/* DRAG AND DROP ZONE / TEXT AREA */}
              <div 
                 className={`relative z-10 transition-all duration-300 ${isDragging ? 'scale-[1.01]' : ''}`}
@@ -294,7 +322,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                 onDrop={handleDrop}
              >
                 <textarea 
-                  className={`w-full h-[450px] bg-white border p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'}`}
+                  className={`w-full h-[450px] bg-white border p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'} ${errorState ? 'border-red-200' : ''}`}
                   placeholder={t.placeholder}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
