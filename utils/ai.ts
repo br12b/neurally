@@ -1,24 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { Question } from "../types";
 
-// ==============================================================================
-// 🔑 API ANAHTARINI BURAYA YAPIŞTIR
-// ------------------------------------------------------------------------------
-// Google Gemini kullanıyorsan: "AIza..." ile başlayan anahtarı,
-// Groq kullanıyorsan: "gsk_..." ile başlayan anahtarı
-// aşağıdaki tırnakların içine yapıştır. Sistem otomatik algılar.
-// ==============================================================================
-const MANUAL_API_KEY: string = ""; 
-// ==============================================================================
-
 // --- API KEY DETECTION ---
+// Vercel veya .env dosyasından anahtarı okur.
 export const getApiKey = (): string => {
-  // 1. Önce manuel anahtarı kontrol et (En garantisi)
-  if (MANUAL_API_KEY && MANUAL_API_KEY.length > 5) {
-    return MANUAL_API_KEY;
-  }
-
   try {
+    // 1. Vite Environment Variable (Vercel için önerilen: VITE_API_KEY)
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
       // @ts-ignore
@@ -27,6 +14,7 @@ export const getApiKey = (): string => {
   } catch (e) {}
 
   try {
+    // 2. Next.js / Create React App Environment Variable
     if (typeof process !== 'undefined' && process.env) {
       if (process.env.NEXT_PUBLIC_API_KEY) return process.env.NEXT_PUBLIC_API_KEY;
       if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
@@ -37,16 +25,15 @@ export const getApiKey = (): string => {
   return "";
 };
 
-// --- GROQ ADAPTER (Mimics Gemini SDK) ---
-class GroqAdapter {
+// --- OPENROUTER ADAPTER ---
+class OpenRouterAdapter {
   private apiKey: string;
-  private baseUrl = "https://api.groq.com/openai/v1/chat/completions";
+  private baseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
   }
 
-  // Mimic the 'models' property structure of Gemini SDK
   get models() {
     return {
       generateContent: async (params: any) => {
@@ -58,29 +45,24 @@ class GroqAdapter {
   async generateContent(params: any) {
     const { contents, config } = params;
     
-    // Convert Gemini 'contents' to OpenAI/Groq 'messages'
     let userContent = "";
     
-    // Handle Text or Object input
     if (typeof contents === 'string') {
         userContent = contents;
     } else if (contents.parts) {
-        // Groq text-only fallback: Sadece text olan kısımları al
         userContent = contents.parts
             .filter((p: any) => p.text)
             .map((p: any) => p.text)
             .join("\n");
             
-        // Eğer inlineData (Resim/PDF) varsa uyarı ekle ama patlatma
         if (contents.parts.some((p: any) => p.inlineData)) {
-            console.warn("Neurally: PDF/Görsel verisi algılandı. Groq sadece metin destekler, dosya içeriği yoksayılıyor.");
-            userContent += "\n[SYSTEM NOTE: The user attached a file, but the current AI engine (Groq) supports text only. Please generate the best possible response based on the text prompt provided.]";
+            console.warn("Neurally: Dosya algılandı. OpenRouter adaptörü şu an sadece metin işliyor.");
+            userContent += "\n[SYSTEM NOTE: The user attached a file. Please generate the best possible response based on the text prompt provided.]";
         }
     } else {
        userContent = JSON.stringify(contents);
     }
 
-    // Determine System Prompt
     let systemMessage = "You are a helpful AI tutor.";
     if (userContent.includes("Active Recall") || userContent.includes("Soru")) {
         systemMessage = "You are an expert exam creator. Output strict JSON only. No markdown formatting like ```json.";
@@ -88,20 +70,116 @@ class GroqAdapter {
         systemMessage = "You are a study summarizer. Output strict JSON only. No markdown formatting.";
     }
 
-    // JSON Zorlaması (Groq için kritik)
     if (config?.responseMimeType === "application/json") {
        userContent += "\n\nIMPORTANT: Return ONLY valid JSON. Do not include any explanation, prologue, or markdown backticks.";
     }
 
     const body = {
-      model: "llama-3.3-70b-versatile", // En güncel ve güçlü Groq modeli
+      model: "google/gemini-2.0-flash-001", // OpenRouter üzerinden hızlı ve ucuz model
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userContent }
       ],
       temperature: 0.3,
       max_tokens: 4000,
-      response_format: { type: "json_object" } // JSON Modu
+      response_format: { type: "json_object" },
+      provider: {
+        order: ["Google", "DeepInfra"],
+        allow_fallbacks: true
+      }
+    };
+
+    try {
+      console.log("Neurally: Sending request to OpenRouter API...");
+      const response = await fetch(this.baseUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.apiKey}`,
+          "HTTP-Referer": window.location.href, // OpenRouter gereksinimi
+          "X-Title": "Neurally App",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        console.error("OpenRouter API Error Details:", errData);
+        throw new Error(`OpenRouter API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content || "";
+
+      return {
+        text: content,
+        candidates: [{ content: { parts: [{ text: content }] } }]
+      };
+
+    } catch (error) {
+      console.error("OpenRouter Adapter Failed:", error);
+      throw error;
+    }
+  }
+}
+
+// --- GROQ ADAPTER ---
+class GroqAdapter {
+  private apiKey: string;
+  private baseUrl = "https://api.groq.com/openai/v1/chat/completions";
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  get models() {
+    return {
+      generateContent: async (params: any) => {
+        return this.generateContent(params);
+      }
+    };
+  }
+
+  async generateContent(params: any) {
+    const { contents, config } = params;
+    
+    let userContent = "";
+    
+    if (typeof contents === 'string') {
+        userContent = contents;
+    } else if (contents.parts) {
+        userContent = contents.parts
+            .filter((p: any) => p.text)
+            .map((p: any) => p.text)
+            .join("\n");
+            
+        if (contents.parts.some((p: any) => p.inlineData)) {
+            userContent += "\n[SYSTEM NOTE: File content ignored by Groq text-only adapter.]";
+        }
+    } else {
+       userContent = JSON.stringify(contents);
+    }
+
+    let systemMessage = "You are a helpful AI tutor.";
+    if (userContent.includes("Active Recall") || userContent.includes("Soru")) {
+        systemMessage = "You are an expert exam creator. Output strict JSON only. No markdown formatting like ```json.";
+    } else if (userContent.includes("Key Points") || userContent.includes("Püf Noktaları")) {
+        systemMessage = "You are a study summarizer. Output strict JSON only. No markdown formatting.";
+    }
+
+    if (config?.responseMimeType === "application/json") {
+       userContent += "\n\nIMPORTANT: Return ONLY valid JSON. Do not include any explanation, prologue, or markdown backticks.";
+    }
+
+    const body = {
+      model: "llama-3.3-70b-versatile", 
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userContent }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000,
+      response_format: { type: "json_object" }
     };
 
     try {
@@ -116,15 +194,12 @@ class GroqAdapter {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        console.error("Groq API Error Details:", errData);
-        throw new Error(`Groq API Error: ${response.status} ${errData.error?.message || response.statusText}`);
+        throw new Error(`Groq API Error: ${response.status}`);
       }
 
       const data = await response.json();
       const content = data.choices[0]?.message?.content || "";
 
-      // Gemini formatına çevir
       return {
         text: content,
         candidates: [{ content: { parts: [{ text: content }] } }]
@@ -146,15 +221,21 @@ export const createAIClient = () => {
       return new GoogleGenAI({ apiKey: "dummy" });
   }
 
-  // HYBRID SWITCH
-  // Eğer key 'gsk_' ile başlıyorsa Groq kullan
+  // 1. OPENROUTER CHECK
+  if (apiKey.startsWith("sk-or-")) {
+      console.log("Neurally: OpenRouter Engine Active");
+      // @ts-ignore
+      return new OpenRouterAdapter(apiKey);
+  }
+
+  // 2. GROQ CHECK
   if (apiKey.startsWith("gsk_")) {
-      console.log("Neurally: Groq Engine Active (Llama 3.3)");
+      console.log("Neurally: Groq Engine Active");
       // @ts-ignore
       return new GroqAdapter(apiKey);
   }
 
-  // Yoksa Gemini kullan
+  // 3. GEMINI DEFAULT
   return new GoogleGenAI({ apiKey });
 };
 

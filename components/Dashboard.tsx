@@ -312,7 +312,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                      >
                         <ShieldAlert className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
                         <div className="text-xs text-yellow-800 font-mono">
-                            <span className="font-bold">SİMÜLASYON MODU AKTİF:</span> API bağlantısı başarısız oldu. Lütfen geçerli bir API Anahtarı (Gemini veya Groq) girdiğinizden emin olun.
+                            <span className="font-bold">SİMÜLASYON MODU AKTİF:</span> API bağlantısı başarısız oldu. Lütfen geçerli bir API Anahtarı (Gemini, Groq veya OpenRouter) girdiğinizden emin olun.
                         </div>
                      </motion.div>
                  )}
