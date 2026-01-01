@@ -38,6 +38,6 @@ export interface User {
 
 export type QuizState = 'intro' | 'active' | 'summary' | 'completed';
 
-export type AppView = 'login' | 'dashboard' | 'quiz' | 'flashcards' | 'pomodoro' | 'notes' | 'methods' | 'report' | 'about' | 'schedule' | 'keypoints' | 'speedrun';
+export type AppView = 'login' | 'dashboard' | 'quiz' | 'flashcards' | 'pomodoro' | 'notes' | 'methods' | 'report' | 'about' | 'schedule' | 'keypoints' | 'speedrun' | 'neuromap';
 
 export type Language = 'tr' | 'en';

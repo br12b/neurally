@@ -11,6 +11,7 @@ import About from './components/About';
 import Schedule from './components/Schedule'; 
 import KeyPoints from './components/KeyPoints'; 
 import SpeedRun from './components/SpeedRun';
+import NeuroMap from './components/NeuroMap';
 import BackgroundFlow from './components/BackgroundFlow'; 
 import { AppView, Question, User, Language, Flashcard } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -152,6 +153,9 @@ function App() {
                   onQuestionsGenerated={handleQuestionsGenerated}
                   language={language}
                 />
+              )}
+              {activeView === 'neurallist' && (
+                <NeuroMap language={language} user={user} />
               )}
               {activeView === 'quiz' && (
                 <NeurallyQuiz 

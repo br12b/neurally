@@ -32,22 +32,33 @@ const QUESTIONS_TR: GameQuestion[] = [
   { q: "Enzimler tepkimeden değişmeden çıkar.", a: true, cat: 'BIO', rationale: "Enzimler biyolojik katalizörlerdir, harcanmazlar." },
   { q: "Akciğer atardamarı kirli kan taşır.", a: true, cat: 'BIO', rationale: "İstisnai bir damardır, kalpten akciğere CO2'li kan götürür." },
   { q: "Mantar bir bitki türüdür.", a: false, cat: 'BIO', rationale: "Mantarlar ayrı bir alemdir, fotosentez yapamazlar." },
+  { q: "Ribozom zarlı bir organeldir.", a: false, cat: 'BIO', rationale: "Ribozom zarsızdır ve tüm canlılarda bulunur." },
+  { q: "Fotosentez sadece gündüz olur.", a: false, cat: 'BIO', rationale: "Yapay ışıkta da fotosentez gerçekleşebilir." },
+  { q: "O grubu kan genel vericidir.", a: true, cat: 'BIO', rationale: "Antijen içermediği için diğer gruplara verilebilir." },
   // Fizik & Kimya
   { q: "Su donduğunda hacmi artar.", a: true, cat: 'PHY', rationale: "Su donarken hidrojen bağları nedeniyle genleşen nadir sıvılardandır." },
   { q: "Işık sesten daha yavaş yayılır.", a: false, cat: 'PHY', rationale: "Işık hızı (300.000 km/s), ses hızından (340 m/s) çok daha fazladır." },
   { q: "Bir kilo demir, bir kilo pamuktan ağırdır.", a: false, cat: 'PHY', rationale: "Kütleleri eşittir (1kg = 1kg). Hacimleri farklıdır." },
   { q: "Atomun çekirdeğinde proton ve elektron bulunur.", a: false, cat: 'CHE', rationale: "Çekirdekte proton ve nötron bulunur, elektronlar yörüdedir." },
   { q: "Asitlerin pH değeri 7'den küçüktür.", a: true, cat: 'CHE', rationale: "0-7 arası asit, 7 nötr, 7-14 arası bazdır." },
+  { q: "Ses boşlukta yayılmaz.", a: true, cat: 'PHY', rationale: "Ses mekanik bir dalgadır, maddesel ortam gerekir." },
+  { q: "Güneş bir yıldızdır.", a: true, cat: 'PHY', rationale: "Güneş sistemimizin merkezindeki orta büyüklükte bir yıldızdır." },
+  { q: "Altın paslanmaz.", a: true, cat: 'CHE', rationale: "Altın soy bir metaldir, oksijenle kolay tepkimeye girmez." },
   // Tarih & Coğrafya
   { q: "Türkiye'nin en yüksek dağı Ağrı Dağı'dır.", a: true, cat: 'GEO', rationale: "5137 metre ile en yüksek zirvedir." },
   { q: "İstanbul 1453 yılında fethedilmiştir.", a: true, cat: 'HIS', rationale: "Fatih Sultan Mehmet tarafından fethedildi." },
   { q: "Malazgirt Savaşı 1923'te yapılmıştır.", a: false, cat: 'HIS', rationale: "1071 yılında yapılmıştır. 1923 Cumhuriyet'in ilanıdır." },
   { q: "Türkiye'nin başkenti İstanbul'dur.", a: false, cat: 'GEO', rationale: "Başkent Ankara'dır." },
   { q: "Piri Reis haritacıdır.", a: true, cat: 'HIS', rationale: "Dünya haritası ve Kitab-ı Bahriye ile tanınır." },
+  { q: "Çin Seddi uzaydan çıplak gözle görülür.", a: false, cat: 'GEN', rationale: "Bu yaygın bir efsanedir, çıplak gözle görülemez." },
+  { q: "Kutup ayıları Güney Kutbu'nda yaşar.", a: false, cat: 'GEO', rationale: "Kutup ayıları Kuzey Kutbu'nda (Arktik) yaşar." },
+  { q: "Lozan Antlaşması Türkiye'nin tapusudur.", a: true, cat: 'HIS', rationale: "Bağımsızlığın uluslararası tescilidir." },
   // Genel
   { q: "Pi sayısı tam olarak 3'tür.", a: false, cat: 'GEN', rationale: "Yaklaşık 3,14'tür, sonsuza kadar gider." },
   { q: "Satrançta en önemli taş Şah'tır.", a: true, cat: 'GEN', rationale: "Şah düşerse oyun biter." },
   { q: "Google bir arama motorudur.", a: true, cat: 'GEN', rationale: "Web sayfalarını indeksleyen bir sistemdir." },
+  { q: "Balıklar gözlerini kırpar.", a: false, cat: 'BIO', rationale: "Balıkların çoğunun göz kapağı yoktur." },
+  { q: "Bir yıl 365 gün 6 saattir.", a: true, cat: 'GEN', rationale: "Bu yüzden 4 yılda bir Şubat 29 çeker." },
 ];
 
 const QUESTIONS_EN: GameQuestion[] = [
@@ -58,14 +69,22 @@ const QUESTIONS_EN: GameQuestion[] = [
   { q: "Humans have 23 pairs of chromosomes.", a: true, cat: 'BIO', rationale: "46 chromosomes in total." },
   { q: "Electrons have a positive charge.", a: false, cat: 'CHE', rationale: "Electrons are negative, Protons are positive." },
   { q: "Water expands when it freezes.", a: true, cat: 'PHY', rationale: "Due to crystal lattice structure of ice." },
+  { q: "Venus is the hottest planet.", a: true, cat: 'PHY', rationale: "Due to its thick atmosphere and greenhouse effect." },
+  { q: "Spiders are insects.", a: false, cat: 'BIO', rationale: "Spiders are arachnids, having 8 legs." },
+  { q: "Sound cannot travel in a vacuum.", a: true, cat: 'PHY', rationale: "Sound requires a medium like air or water." },
   // History & Geo
   { q: "The Ottoman Empire fell in 1923.", a: true, cat: 'HIS', rationale: "Replaced by the Republic of Turkey." },
   { q: "The Amazon is the longest river.", a: false, cat: 'GEO', rationale: "The Nile is traditionally considered longer." },
   { q: "Mount Everest is the highest peak.", a: true, cat: 'GEO', rationale: "8,848 meters above sea level." },
   { q: "Tokyo is the capital of Japan.", a: true, cat: 'GEO', rationale: "It is the political and economic center." },
+  { q: "World War II ended in 1945.", a: true, cat: 'HIS', rationale: "Ended with the surrender of Japan." },
+  { q: "Australia is a country and a continent.", a: true, cat: 'GEO', rationale: "It is the only country that is also a continent." },
   // General
   { q: "A tomato is a fruit.", a: true, cat: 'GEN', rationale: "Botanically, it develops from a flower ovary." },
   { q: "Iron rusts due to oxidation.", a: true, cat: 'CHE', rationale: "Reaction of iron and oxygen in the presence of water." },
+  { q: "Sharks are mammals.", a: false, cat: 'BIO', rationale: "Sharks are fish." },
+  { q: "The Great Wall of China is visible from space.", a: false, cat: 'GEN', rationale: "It is not visible to the naked eye from orbit." },
+  { q: "Diamond is the hardest natural substance.", a: true, cat: 'CHE', rationale: "It scores 10 on the Mohs scale." },
 ];
 
 export default function SpeedRun({ language, user, onExit }: SpeedRunProps) {

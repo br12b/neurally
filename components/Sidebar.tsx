@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket } from 'lucide-react';
+import { LayoutGrid, Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket, LayoutList } from 'lucide-react';
 import { AppView, User, Language } from '../types';
 import { translations } from '../utils/translations';
 
@@ -17,10 +17,11 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
   const t = translations[language].menu;
 
   const menuItems = [
-    { id: 'dashboard', icon: Activity, label: t.dashboard }, // Changed Icon to Activity for "Analysis"
+    { id: 'dashboard', icon: Activity, label: t.dashboard }, 
+    { id: 'neurallist', icon: LayoutList, label: t.neurallist }, // UPDATED ITEM
     { id: 'keypoints', icon: Lightbulb, label: t.keypoints }, 
     { id: 'quiz', icon: Brain, label: t.quiz },
-    { id: 'speedrun', icon: Rocket, label: t.speedrun }, // NEW ITEM
+    { id: 'speedrun', icon: Rocket, label: t.speedrun },
     { id: 'flashcards', icon: Layers, label: t.flashcards },
     { id: 'schedule', icon: Calendar, label: t.schedule },
     { id: 'notes', icon: BookOpen, label: t.notes },

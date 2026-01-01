@@ -13,6 +13,7 @@ export const translations = {
       pomodoro: "Odak Modu",
       report: "Gelişim Raporu",
       speedrun: "Hız Tüneli",
+      neurallist: "Neural List",
       about: "Hakkında & Rehber"
     },
     dashboard: {
@@ -40,6 +41,7 @@ export const translations = {
       pomodoro: "Flow State",
       report: "Audit Report",
       speedrun: "Speed Tunnel",
+      neurallist: "Neural List",
       about: "About & Guide"
     },
     dashboard: {
