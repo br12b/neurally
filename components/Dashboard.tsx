@@ -389,6 +389,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                 <div className="flex items-center gap-4">
                     <button 
                     onClick={() => fileInputRef.current?.click()}
+                    title="Upload Text File"
                     className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
                     >
                     <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">
@@ -400,6 +401,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
 
                     <button 
                     onClick={() => pdfInputRef.current?.click()}
+                    title="Upload PDF Document"
                     className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
                     >
                     <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">

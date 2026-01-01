@@ -28,6 +28,9 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
   // Search Grounding State
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
+  
+  // Save Feedback State
+  const [saveFeedback, setSaveFeedback] = useState<boolean>(false);
 
   useEffect(() => {
     // Reset everything when new questions come in
@@ -39,12 +42,14 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
     setSelectedOptionId(null);
     setLoopCount(0);
     setSearchResults(null);
+    setSaveFeedback(false);
   }, [questions]);
 
   // Clear search results when moving to next question
   useEffect(() => {
       setSearchResults(null);
       setIsSearching(false);
+      setSaveFeedback(false);
   }, [currentIndex]);
 
   // GOOGLE SEARCH GROUNDING
@@ -81,9 +86,6 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
               });
           }
 
-          // Fallback if structured chunks are tricky, sometimes model puts them in text, 
-          // but for this specific "search tool" request, chunks are the way.
-          // If no chunks, we might parse text, but let's rely on chunks for valid grounding.
           setSearchResults(links.length > 0 ? links : []);
 
       } catch (error) {
@@ -182,8 +184,22 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
                 tag: q.topicTag || "REVIEW"
             });
         });
-        alert(`${mistakes.length} errors saved to neural deck.`);
+        alert(`${mistakes.length} hata başarıyla kartlara eklendi! / Errors saved successfully!`);
     }
+  };
+
+  const handleSingleSave = () => {
+      if (onAddToFlashcards && currentQuestion) {
+          onAddToFlashcards({
+              id: Date.now(),
+              front: currentQuestion.text,
+              back: currentQuestion.rationale,
+              tag: currentQuestion.topicTag || "GEN"
+          });
+          setSaveFeedback(true);
+          // 2 saniye sonra mesajı eski haline getir
+          setTimeout(() => setSaveFeedback(false), 2000);
+      }
   };
 
   // --- COMPLETED STATE ---
@@ -473,10 +489,14 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
                  
                  <div className="flex gap-4 mt-4">
                     <button 
-                        onClick={() => onAddToFlashcards && onAddToFlashcards({id: Date.now(), front: currentQuestion.text, back: currentQuestion.rationale, tag: currentQuestion.topicTag})}
-                        className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black flex items-center gap-1"
+                        onClick={handleSingleSave}
+                        className={`
+                            text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 transition-all duration-300
+                            ${saveFeedback ? 'text-emerald-500 scale-105' : 'text-gray-400 hover:text-black'}
+                        `}
                     >
-                        <PlusCircle className="w-3 h-3" /> Save to Flashcards
+                        {saveFeedback ? <Check className="w-3 h-3" /> : <PlusCircle className="w-3 h-3" />} 
+                        {saveFeedback ? 'Başarıyla Eklendi!' : 'Save to Flashcards'}
                     </button>
                  </div>
                </div>
