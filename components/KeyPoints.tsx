@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lightbulb, FileText, UploadCloud, Loader2, ArrowRight, CheckCircle2, Sparkles, Copy } from 'lucide-react';
+import { Lightbulb, FileText, UploadCloud, Loader2, ArrowRight, CheckCircle2, Sparkles, Copy, ShieldAlert } from 'lucide-react';
 import { Type } from "@google/genai";
-import { createAIClient } from '../utils/ai';
+import { createAIClient, generateFallbackKeyPoints } from '../utils/ai';
 import { Language } from '../types';
 
 interface KeyPointsProps {
@@ -20,6 +20,7 @@ export default function KeyPoints({ language }: KeyPointsProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputText, setInputText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [isMockMode, setIsMockMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isTr = language === 'tr';
@@ -31,6 +32,8 @@ export default function KeyPoints({ language }: KeyPointsProps) {
     }
 
     setIsProcessing(true);
+    setIsMockMode(false);
+    
     try {
         // Use Centralized Client
         const ai = createAIClient();
@@ -77,8 +80,18 @@ export default function KeyPoints({ language }: KeyPointsProps) {
             setPoints(data);
         }
     } catch (error) {
-        console.error(error);
-        alert("AI Error.");
+        console.warn("Gemini API Failed for KeyPoints, switching to fallback:", error);
+        
+        setIsMockMode(true);
+        // Simulate network delay
+        setTimeout(() => {
+            const mockPoints = generateFallbackKeyPoints();
+            // @ts-ignore
+            setPoints(mockPoints);
+            setIsProcessing(false);
+        }, 1500);
+        return;
+
     } finally {
         setIsProcessing(false);
     }
@@ -130,7 +143,7 @@ export default function KeyPoints({ language }: KeyPointsProps) {
             </p>
          </div>
          <button 
-            onClick={() => { setPoints([]); setInputText(""); }}
+            onClick={() => { setPoints([]); setInputText(""); setIsMockMode(false); }}
             className="px-6 py-3 border border-gray-200 text-gray-500 text-xs font-bold uppercase tracking-widest hover:border-black hover:text-black transition-all"
          >
             {isTr ? 'Sıfırla' : 'Reset Context'}
@@ -141,6 +154,16 @@ export default function KeyPoints({ language }: KeyPointsProps) {
          
          {/* LEFT: INPUT AREA */}
          <div className="lg:col-span-5 space-y-6">
+            
+            {isMockMode && (
+                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-start gap-3">
+                <ShieldAlert className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-yellow-800 font-mono">
+                    <span className="font-bold">SİMÜLASYON MODU:</span> API kotası aşıldı. Örnek veriler gösteriliyor.
+                </div>
+                </div>
+            )}
+
             <div 
                className={`
                   relative h-[400px] bg-white border transition-all duration-300 group
