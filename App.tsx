@@ -129,8 +129,14 @@ function App() {
         />
       )}
       
-      <main className="flex-1 relative overflow-y-auto h-screen z-10">
-        <div className={`relative z-10 mx-auto min-h-screen ${activeView === 'speedrun' ? 'max-w-full' : 'max-w-[1600px]'}`}>
+      {/* 
+          LAYOUT FIX:
+          - h-screen: Ensures main takes full viewport height.
+          - overflow-hidden (SpeedRun): Prevents scrolling and white bars.
+          - w-full h-full (Inner Div): Ensures the game container stretches to fill the main area.
+      */}
+      <main className={`flex-1 relative h-screen z-10 ${activeView === 'speedrun' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <div className={`relative z-10 mx-auto ${activeView === 'speedrun' ? 'w-full h-full' : 'min-h-screen max-w-[1600px]'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
