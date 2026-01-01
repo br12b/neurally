@@ -117,14 +117,17 @@ function App() {
       {/* Global Ambient Background - Hide in SpeedRun for performance */}
       {activeView !== 'speedrun' && <BackgroundFlow />}
 
-      <Sidebar 
-        activeView={activeView} 
-        onChangeView={setActiveView} 
-        user={user}
-        onLogout={handleLogout}
-        language={language}
-        setLanguage={setLanguage}
-      />
+      {/* SIDEBAR: Only show if NOT in SpeedRun mode */}
+      {activeView !== 'speedrun' && (
+        <Sidebar 
+          activeView={activeView} 
+          onChangeView={setActiveView} 
+          user={user}
+          onLogout={handleLogout}
+          language={language}
+          setLanguage={setLanguage}
+        />
+      )}
       
       <main className="flex-1 relative overflow-y-auto h-screen z-10">
         <div className={`relative z-10 mx-auto min-h-screen ${activeView === 'speedrun' ? 'max-w-full' : 'max-w-[1600px]'}`}>
@@ -153,7 +156,11 @@ function App() {
                 />
               )}
               {activeView === 'speedrun' && (
-                <SpeedRun language={language} user={user} />
+                <SpeedRun 
+                    language={language} 
+                    user={user} 
+                    onExit={() => setActiveView('dashboard')} 
+                />
               )}
               {activeView === 'flashcards' && (
                 <Flashcards 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, Zap, AlertTriangle, RotateCcw, Trophy, ChevronsRight, Brain, Flame, Activity, BarChart3, X, Check, Keyboard, ArrowLeft, ArrowRight, TrendingUp, Medal } from 'lucide-react';
+import { Timer, Zap, AlertTriangle, RotateCcw, Trophy, ChevronsRight, Brain, Flame, Activity, BarChart3, X, Check, Keyboard, ArrowLeft, ArrowRight, TrendingUp, Medal, LogOut } from 'lucide-react';
 import { Language, User } from '../types';
 
 interface SpeedRunProps {
   language: Language;
   user?: User;
+  onExit: () => void;
 }
 
 interface GameQuestion {
@@ -67,7 +68,7 @@ const QUESTIONS_EN: GameQuestion[] = [
   { q: "Iron rusts due to oxidation.", a: true, cat: 'CHE', rationale: "Reaction of iron and oxygen in the presence of water." },
 ];
 
-export default function SpeedRun({ language, user }: SpeedRunProps) {
+export default function SpeedRun({ language, user, onExit }: SpeedRunProps) {
   const isTr = language === 'tr';
   
   // Game State
@@ -298,8 +299,19 @@ export default function SpeedRun({ language, user }: SpeedRunProps) {
       </div>
 
       {/* --- HUD --- */}
+      {/* EXIT BUTTON - ALWAYS VISIBLE IN TOP RIGHT */}
+      <div className="absolute top-6 right-6 z-50">
+        <button 
+            onClick={onExit}
+            className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white/50 hover:text-white transition-all backdrop-blur-sm border border-white/5 group"
+            title={isTr ? "Çıkış" : "Exit"}
+        >
+            <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        </button>
+      </div>
+
       {gameState !== 'idle' && gameState !== 'gameover' && (
-        <div className="absolute top-6 left-6 right-6 flex justify-between items-start z-30 pointer-events-none">
+        <div className="absolute top-6 left-6 flex justify-between items-start z-30 pointer-events-none">
             <div className="text-white relative group">
                 <p className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.2em] mb-1">Score</p>
                 <h2 className="font-serif text-6xl tabular-nums tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
@@ -316,19 +328,19 @@ export default function SpeedRun({ language, user }: SpeedRunProps) {
                     </motion.div>
                 )}
             </div>
-            
-            <div className="flex flex-col items-end">
-                <div className={`
+        </div>
+      )}
+
+      {/* Center Timer for HUD */}
+      {gameState !== 'idle' && gameState !== 'gameover' && (
+         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+             <div className={`
                     flex items-center gap-3 font-mono text-3xl font-bold px-4 py-2 rounded border
                     ${timeLeft < 10 ? 'text-red-500 border-red-500 bg-red-950/50 animate-pulse' : 'text-white border-white/20 bg-black/50'}
                 `}>
                     <Timer className="w-6 h-6" /> {timeLeft}s
                 </div>
-                <div className="text-[10px] font-mono text-gray-500 mt-2">
-                    CATEGORY: {activeQuestions[currentQ % activeQuestions.length]?.cat || "GEN"}
-                </div>
-            </div>
-        </div>
+         </div>
       )}
 
       {/* --- CONTENT LAYER --- */}
@@ -496,13 +508,21 @@ export default function SpeedRun({ language, user }: SpeedRunProps) {
                              ))}
                          </div>
                      </div>
-
-                     <button 
-                        onClick={startGame}
-                        className="w-full py-4 bg-white text-black font-bold uppercase tracking-[0.2em] hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
-                     >
-                        <RotateCcw className="w-4 h-4" /> {isTr ? 'YENİDEN BAŞLAT' : 'RESTART SYSTEM'}
-                     </button>
+                     
+                     <div className="flex gap-4">
+                        <button 
+                            onClick={startGame}
+                            className="flex-1 py-4 bg-white text-black font-bold uppercase tracking-[0.2em] hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
+                        >
+                            <RotateCcw className="w-4 h-4" /> {isTr ? 'TEKRAR' : 'RESTART'}
+                        </button>
+                        <button 
+                            onClick={onExit}
+                            className="flex-1 py-4 border border-white/20 text-white font-bold uppercase tracking-[0.2em] hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                        >
+                            <LogOut className="w-4 h-4" /> {isTr ? 'ÇIKIŞ' : 'EXIT'}
+                        </button>
+                     </div>
                  </div>
 
                  {/* RIGHT: ERROR LOG (Neural Glitches) */}
