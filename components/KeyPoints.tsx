@@ -159,7 +159,7 @@ export default function KeyPoints({ language }: KeyPointsProps) {
                 <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-start gap-3">
                 <ShieldAlert className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-yellow-800 font-mono">
-                    <span className="font-bold">SİMÜLASYON MODU:</span> API kotası aşıldı. Örnek veriler gösteriliyor.
+                    <span className="font-bold">SİMÜLASYON MODU:</span> API bağlantısı sağlanamadı. Simülasyon verileri gösteriliyor.
                 </div>
                 </div>
             )}

@@ -2,9 +2,13 @@ import { GoogleGenAI } from "@google/genai";
 import { Question } from "../types";
 
 // ==============================================================================
-// 🔑 API ANAHTARINI BURAYA YAPIŞTIR (Eğer .env çalışmıyorsa)
+// 🔑 API ANAHTARINI BURAYA YAPIŞTIR
+// ------------------------------------------------------------------------------
+// Google Gemini kullanıyorsan: "AIza..." ile başlayan anahtarı,
+// Groq kullanıyorsan: "gsk_..." ile başlayan anahtarı
+// aşağıdaki tırnakların içine yapıştır. Sistem otomatik algılar.
 // ==============================================================================
-const MANUAL_API_KEY: string = ""; // Örn: "gsk_8A..."
+const MANUAL_API_KEY: string = ""; 
 // ==============================================================================
 
 // --- API KEY DETECTION ---
