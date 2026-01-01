@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Save, Type, Highlighter, List, Quote, Terminal, Maximize2, Minimize2, Check, Keyboard, Volume2, VolumeX, Laptop, Download, FileText, Image as ImageIcon, X, Trash2, Plus, FileUp, Loader2, ChevronRight, Search } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { createAIClient } from '../utils/ai';
 
 type SoundMode = 'off' | 'thock' | 'typewriter' | 'laptop';
 
@@ -261,7 +261,8 @@ export default function SmartNotes() {
               // Remove data URL prefix (e.g., "data:application/pdf;base64,")
               const base64Content = base64Data.split(',')[1];
 
-              const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+              // Use Centralized Client
+              const ai = createAIClient();
               
               const result = await ai.models.generateContent({
                   model: "gemini-2.5-flash",

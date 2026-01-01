@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, useAnimation, animate, AnimatePresence } from 'framer-motion';
 import { Zap, Trophy, ArrowRight, Sparkles, Plus, Loader2, Brain, Activity, Search, Users, Network, Globe, Terminal, Cpu, FileUp, UploadCloud, FileType } from 'lucide-react';
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
+import { createAIClient } from '../utils/ai'; // Updated Import
 import { Question, User, Language } from '../types';
 import { translations } from '../utils/translations';
 import Marquee from './ui/Marquee';
@@ -74,7 +75,8 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
 
     setIsProcessing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Use centralized client
+      const ai = createAIClient();
 
       let promptContent: any = "";
       let parts: any[] = [];

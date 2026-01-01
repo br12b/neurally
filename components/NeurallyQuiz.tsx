@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, ArrowRight, RotateCw, Trophy, LayoutGrid, Brain, Save, PlusCircle, AlertCircle, RefreshCcw, Search, Globe, ExternalLink, Loader2, StopCircle } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { createAIClient } from '../utils/ai';
 import { Question, QuizState, Flashcard } from '../types';
 
 interface NeurallyQuizProps {
@@ -53,7 +53,8 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
       
       setIsSearching(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          // Use Centralized Client
+          const ai = createAIClient();
           
           // Using gemini-2.5-flash which supports googleSearch tool (or pro)
           // As per instructions, requesting grounding

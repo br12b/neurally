@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lightbulb, FileText, UploadCloud, Loader2, ArrowRight, CheckCircle2, Sparkles, Copy } from 'lucide-react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
+import { createAIClient } from '../utils/ai';
 import { Language } from '../types';
 
 interface KeyPointsProps {
@@ -31,7 +32,8 @@ export default function KeyPoints({ language }: KeyPointsProps) {
 
     setIsProcessing(true);
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        // Use Centralized Client
+        const ai = createAIClient();
         
         const systemPrompt = isTr 
             ? "Verilen içerikten YKS sınavı için hayati önem taşıyan 'Püf Noktaları' çıkar. Öğrencilerin sık karıştırdığı yerlere, formüllere veya mantık hatalarına odaklan. 5 ile 8 arası madde çıkar. JSON formatında döndür."
