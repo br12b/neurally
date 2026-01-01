@@ -1,8 +1,19 @@
 import { GoogleGenAI } from "@google/genai";
 import { Question } from "../types";
 
+// ==============================================================================
+// 🔑 API ANAHTARINI BURAYA YAPIŞTIR (Eğer .env çalışmıyorsa)
+// ==============================================================================
+const MANUAL_API_KEY: string = ""; // Örn: "gsk_8A..."
+// ==============================================================================
+
 // --- API KEY DETECTION ---
 export const getApiKey = (): string => {
+  // 1. Önce manuel anahtarı kontrol et (En garantisi)
+  if (MANUAL_API_KEY && MANUAL_API_KEY.length > 5) {
+    return MANUAL_API_KEY;
+  }
+
   try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
@@ -50,49 +61,47 @@ class GroqAdapter {
     if (typeof contents === 'string') {
         userContent = contents;
     } else if (contents.parts) {
-        // Simple extraction for text parts
-        // Groq doesn't support PDF/Video base64 in this simple adapter yet
-        // We filter for text
+        // Groq text-only fallback: Sadece text olan kısımları al
         userContent = contents.parts
             .filter((p: any) => p.text)
             .map((p: any) => p.text)
             .join("\n");
             
-        // Warning if PDF data was present but dropped
+        // Eğer inlineData (Resim/PDF) varsa uyarı ekle ama patlatma
         if (contents.parts.some((p: any) => p.inlineData)) {
-            console.warn("Groq Adapter: Binary/PDF data ignored. Groq primarily supports text.");
-            userContent += "\n[SYSTEM NOTE: The user attached a file, but Groq Vision is not enabled in this adapter. Rely on the text prompt.]";
+            console.warn("Neurally: PDF/Görsel verisi algılandı. Groq sadece metin destekler, dosya içeriği yoksayılıyor.");
+            userContent += "\n[SYSTEM NOTE: The user attached a file, but the current AI engine (Groq) supports text only. Please generate the best possible response based on the text prompt provided.]";
         }
     } else {
-       // Fallback for complex objects
        userContent = JSON.stringify(contents);
     }
 
-    // Determine System Prompt based on user content context (heuristic)
+    // Determine System Prompt
     let systemMessage = "You are a helpful AI tutor.";
-    if (userContent.includes("Active Recall")) {
+    if (userContent.includes("Active Recall") || userContent.includes("Soru")) {
         systemMessage = "You are an expert exam creator. Output strict JSON only. No markdown formatting like ```json.";
     } else if (userContent.includes("Key Points") || userContent.includes("Püf Noktaları")) {
         systemMessage = "You are a study summarizer. Output strict JSON only. No markdown formatting.";
     }
 
-    // Schema Enforcement for Groq (Llama 3 follows instructions well)
+    // JSON Zorlaması (Groq için kritik)
     if (config?.responseMimeType === "application/json") {
        userContent += "\n\nIMPORTANT: Return ONLY valid JSON. Do not include any explanation, prologue, or markdown backticks.";
     }
 
     const body = {
-      model: "llama-3.1-70b-versatile", // Using a powerful Groq model
+      model: "llama-3.3-70b-versatile", // En güncel ve güçlü Groq modeli
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userContent }
       ],
       temperature: 0.3,
       max_tokens: 4000,
-      response_format: { type: "json_object" } // Force JSON mode
+      response_format: { type: "json_object" } // JSON Modu
     };
 
     try {
+      console.log("Neurally: Sending request to Groq API...");
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
@@ -103,14 +112,15 @@ class GroqAdapter {
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(`Groq API Error: ${errData.error?.message || response.statusText}`);
+        const errData = await response.json().catch(() => ({}));
+        console.error("Groq API Error Details:", errData);
+        throw new Error(`Groq API Error: ${response.status} ${errData.error?.message || response.statusText}`);
       }
 
       const data = await response.json();
       const content = data.choices[0]?.message?.content || "";
 
-      // Return in Gemini-like structure
+      // Gemini formatına çevir
       return {
         text: content,
         candidates: [{ content: { parts: [{ text: content }] } }]
@@ -128,25 +138,24 @@ export const createAIClient = () => {
   const apiKey = getApiKey();
   
   if (!apiKey) {
-      // Return a dummy that will fail gracefully into mock mode
+      console.warn("Neurally: No API Key found. Using Dummy.");
       return new GoogleGenAI({ apiKey: "dummy" });
   }
 
   // HYBRID SWITCH
+  // Eğer key 'gsk_' ile başlıyorsa Groq kullan
   if (apiKey.startsWith("gsk_")) {
-      console.log("Neurally: Switching to Groq Engine");
-      // @ts-ignore - We are returning a duck-typed object that looks like GoogleGenAI
+      console.log("Neurally: Groq Engine Active (Llama 3.3)");
+      // @ts-ignore
       return new GroqAdapter(apiKey);
   }
 
-  // Default to Gemini
+  // Yoksa Gemini kullan
   return new GoogleGenAI({ apiKey });
 };
 
 
 // --- MOCK / FALLBACK DATA GENERATORS ---
-// API Kotası dolduğunda veya hata alındığında devreye girer.
-
 export const generateFallbackQuestions = (): Question[] => {
   return [
     {

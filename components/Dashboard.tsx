@@ -139,7 +139,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
           throw new Error("No text returned from AI");
       }
     } catch (error: any) {
-      console.warn("Gemini API Failed, switching to fallback:", error);
+      console.warn("AI Engine Failed, switching to fallback.", error);
       
       // FALLBACK MECHANISM: If API fails (Quota, Key, Network), use Mock Data
       // This ensures the app never looks "broken" to the user.
@@ -312,7 +312,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                      >
                         <ShieldAlert className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
                         <div className="text-xs text-yellow-800 font-mono">
-                            <span className="font-bold">SİMÜLASYON MODU AKTİF:</span> API kotası dolduğu için sistem "Mock Neural Engine" (Simülasyon) moduna geçti. Sorular yapay zeka tarafından değil, önbellekten üretiliyor.
+                            <span className="font-bold">SİMÜLASYON MODU AKTİF:</span> API bağlantısı başarısız oldu. Groq anahtarını kontrol et veya kotanın dolmadığından emin ol.
                         </div>
                      </motion.div>
                  )}
