@@ -1,3 +1,4 @@
+
 import { Language } from '../types';
 
 export const translations = {
@@ -11,6 +12,7 @@ export const translations = {
       notes: "Akıllı Notlar",
       pomodoro: "Odak Modu",
       report: "Gelişim Raporu",
+      speedrun: "Hız Tüneli",
       about: "Hakkında & Rehber"
     },
     dashboard: {
@@ -37,6 +39,7 @@ export const translations = {
       notes: "Smart Notes",
       pomodoro: "Flow State",
       report: "Audit Report",
+      speedrun: "Speed Tunnel",
       about: "About & Guide"
     },
     dashboard: {

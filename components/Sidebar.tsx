@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity } from 'lucide-react';
+import { LayoutGrid, Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket } from 'lucide-react';
 import { AppView, User, Language } from '../types';
 import { translations } from '../utils/translations';
 
@@ -18,8 +18,9 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
 
   const menuItems = [
     { id: 'dashboard', icon: Activity, label: t.dashboard }, // Changed Icon to Activity for "Analysis"
-    { id: 'keypoints', icon: Lightbulb, label: t.keypoints }, // New Item
+    { id: 'keypoints', icon: Lightbulb, label: t.keypoints }, 
     { id: 'quiz', icon: Brain, label: t.quiz },
+    { id: 'speedrun', icon: Rocket, label: t.speedrun }, // NEW ITEM
     { id: 'flashcards', icon: Layers, label: t.flashcards },
     { id: 'schedule', icon: Calendar, label: t.schedule },
     { id: 'notes', icon: BookOpen, label: t.notes },
@@ -97,7 +98,7 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                  />
                )}
-               <span className={language === lang ? 'text-black' : 'text-gray-400'}>
+               <span className="relative z-10" style={{ color: language === lang ? '#000' : '#9CA3AF' }}>
                  {lang.toUpperCase()}
                </span>
              </button>

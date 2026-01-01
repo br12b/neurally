@@ -10,6 +10,7 @@ import Report from './components/Report';
 import About from './components/About';
 import Schedule from './components/Schedule'; 
 import KeyPoints from './components/KeyPoints'; 
+import SpeedRun from './components/SpeedRun';
 import BackgroundFlow from './components/BackgroundFlow'; 
 import { AppView, Question, User, Language, Flashcard } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -87,8 +88,8 @@ function App() {
   return (
     <div className="flex min-h-screen text-ink-900 selection:bg-black selection:text-white overflow-hidden font-sans bg-transparent">
       
-      {/* Global Ambient Background */}
-      <BackgroundFlow />
+      {/* Global Ambient Background - Hide in SpeedRun for performance */}
+      {activeView !== 'speedrun' && <BackgroundFlow />}
 
       <Sidebar 
         activeView={activeView} 
@@ -100,7 +101,7 @@ function App() {
       />
       
       <main className="flex-1 relative overflow-y-auto h-screen z-10">
-        <div className="relative z-10 max-w-[1600px] mx-auto min-h-screen">
+        <div className={`relative z-10 mx-auto min-h-screen ${activeView === 'speedrun' ? 'max-w-full' : 'max-w-[1600px]'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
@@ -124,6 +125,9 @@ function App() {
                   onRedirectToDashboard={() => setActiveView('dashboard')}
                   onAddToFlashcards={handleAddFlashcard}
                 />
+              )}
+              {activeView === 'speedrun' && (
+                <SpeedRun language={language} />
               )}
               {activeView === 'flashcards' && (
                 <Flashcards 
