@@ -21,7 +21,10 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activeView, setActiveView] = useState<AppView>('dashboard');
   const [questions, setQuestions] = useState<Question[]>([]);
+  
+  // Flashcards state - initially empty
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [language, setLanguage] = useState<Language>('tr');
 
@@ -45,6 +48,7 @@ function App() {
           setUser(JSON.parse(storedUser));
         } else {
           setUser(null);
+          setFlashcards([]); // Clear data on logout
         }
       }
       setIsLoading(false);
@@ -52,6 +56,29 @@ function App() {
 
     return () => unsubscribe();
   }, []);
+
+  // LOAD User Data when User changes
+  useEffect(() => {
+    if (user) {
+        const key = `neurally_flashcards_${user.id}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try {
+                setFlashcards(JSON.parse(saved));
+            } catch (e) { console.error("Data Load Error", e); }
+        } else {
+            setFlashcards([]);
+        }
+    }
+  }, [user]);
+
+  // SAVE User Data when Flashcards change
+  useEffect(() => {
+    if (user && flashcards.length > 0) {
+        const key = `neurally_flashcards_${user.id}`;
+        localStorage.setItem(key, JSON.stringify(flashcards));
+    }
+  }, [flashcards, user]);
 
   const handleQuestionsGenerated = (newQuestions: Question[]) => {
     setQuestions(newQuestions);
@@ -62,7 +89,6 @@ function App() {
     setFlashcards(prev => [card, ...prev]);
   };
 
-  // Called from LoginScreen if using manual/mock flow, or updated via AuthListener
   const handleLogin = (userData: User) => {
     setUser(userData);
     localStorage.setItem('neurally_user', JSON.stringify(userData));
@@ -127,7 +153,7 @@ function App() {
                 />
               )}
               {activeView === 'speedrun' && (
-                <SpeedRun language={language} />
+                <SpeedRun language={language} user={user} />
               )}
               {activeView === 'flashcards' && (
                 <Flashcards 
@@ -136,13 +162,13 @@ function App() {
                 />
               )}
               {activeView === 'schedule' && (
-                <Schedule language={language} />
+                <Schedule language={language} user={user} />
               )}
               {activeView === 'keypoints' && (
                 <KeyPoints language={language} />
               )}
               {activeView === 'pomodoro' && <Pomodoro />}
-              {activeView === 'notes' && <SmartNotes />}
+              {activeView === 'notes' && <SmartNotes user={user} />}
               {activeView === 'report' && <Report user={user} language={language} />}
               {activeView === 'about' && <About language={language} />}
             </motion.div>

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ScheduleItem, Language } from '../types';
+import { ScheduleItem, Language, User } from '../types';
 import { Plus, X, Trash2, Clock, BookOpen, Coffee, RefreshCcw } from 'lucide-react';
 
 interface ScheduleProps {
   language: Language;
+  user: User;
 }
 
-export default function Schedule({ language }: ScheduleProps) {
+export default function Schedule({ language, user }: ScheduleProps) {
   const isTr = language === 'tr';
   
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -23,9 +24,11 @@ export default function Schedule({ language }: ScheduleProps) {
   const [subject, setSubject] = useState("");
   const [type, setType] = useState<'lecture' | 'study' | 'break'>('study');
 
-  // Load from LocalStorage on mount
+  // Load from LocalStorage on mount (User Specific)
   useEffect(() => {
-    const saved = localStorage.getItem('neurally_schedule_v2');
+    if (!user) return;
+    const key = `neurally_schedule_${user.id}`;
+    const saved = localStorage.getItem(key);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -36,15 +39,17 @@ export default function Schedule({ language }: ScheduleProps) {
       } catch (e) {
         console.error("Schedule parse error", e);
       }
+    } else {
+        setScheduleItems([]);
     }
-    // Note: We deliberately do NOT load mock data if empty. 
-    // It starts blank for new users.
-  }, []);
+  }, [user]);
 
-  // Save to LocalStorage on change
+  // Save to LocalStorage on change (User Specific)
   useEffect(() => {
-    localStorage.setItem('neurally_schedule_v2', JSON.stringify(scheduleItems));
-  }, [scheduleItems]);
+    if (!user) return;
+    const key = `neurally_schedule_${user.id}`;
+    localStorage.setItem(key, JSON.stringify(scheduleItems));
+  }, [scheduleItems, user]);
 
   const handleAddItem = () => {
     if (!subject) return;

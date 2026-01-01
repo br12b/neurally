@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Save, Type, Highlighter, List, Quote, Terminal, Maximize2, Minimize2, Check, Keyboard, Volume2, VolumeX, Laptop, Download, FileText, Image as ImageIcon, X, Trash2, Plus, FileUp, Loader2, ChevronRight, Search } from 'lucide-react';
 import { createAIClient } from '../utils/ai';
+import { User } from '../types';
 
 type SoundMode = 'off' | 'thock' | 'typewriter' | 'laptop';
 
@@ -11,6 +12,10 @@ interface Note {
   content: string;
   images: string[];
   lastModified: number;
+}
+
+interface SmartNotesProps {
+    user: User;
 }
 
 // --- AUDIO ENGINE V3.1 ---
@@ -86,7 +91,7 @@ class KeyboardAudioEngine {
 
 const keyboardEngine = new KeyboardAudioEngine();
 
-export default function SmartNotes() {
+export default function SmartNotes({ user }: SmartNotesProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -104,7 +109,10 @@ export default function SmartNotes() {
 
   // --- INITIALIZATION ---
   useEffect(() => {
-      const savedData = localStorage.getItem('neurally_smart_notes_v2');
+      if (!user) return;
+      const key = `neurally_smart_notes_${user.id}`;
+      const savedData = localStorage.getItem(key);
+      
       if (savedData) {
           try {
               const parsedNotes = JSON.parse(savedData);
@@ -115,31 +123,14 @@ export default function SmartNotes() {
                   createDefaultNote();
               }
           } catch (e) {
-              console.error("Failed to parse notes v2", e);
+              console.error("Failed to parse notes", e);
               createDefaultNote();
           }
       } else {
-          // Check for legacy v1 data migration
-          const legacyData = localStorage.getItem('neurally_smart_notes');
-          if (legacyData) {
-              try {
-                  const parsed = JSON.parse(legacyData);
-                  const legacyNote: Note = {
-                      id: Date.now().toString(),
-                      title: "Migrated Note",
-                      content: typeof parsed === 'string' ? parsed : (parsed.text || ""),
-                      images: typeof parsed === 'object' ? (parsed.images || []) : [],
-                      lastModified: Date.now()
-                  };
-                  setNotes([legacyNote]);
-                  setActiveNoteId(legacyNote.id);
-              } catch(e) { createDefaultNote(); }
-          } else {
-              createDefaultNote();
-          }
+          createDefaultNote();
       }
       keyboardEngine.init();
-  }, []);
+  }, [user]);
 
   const createDefaultNote = () => {
       const newNote: Note = {
@@ -155,18 +146,19 @@ export default function SmartNotes() {
 
   // --- AUTO SAVE ---
   useEffect(() => {
-    if (notes.length === 0) return;
+    if (notes.length === 0 || !user) return;
     
     const timer = setTimeout(() => {
         setIsSaving(true);
+        const key = `neurally_smart_notes_${user.id}`;
         setTimeout(() => {
-            localStorage.setItem('neurally_smart_notes_v2', JSON.stringify(notes));
+            localStorage.setItem(key, JSON.stringify(notes));
             setLastSaved(new Date().toLocaleTimeString());
             setIsSaving(false);
         }, 600);
     }, 2000); 
     return () => clearTimeout(timer);
-  }, [notes]);
+  }, [notes, user]);
 
   // --- HANDLERS ---
   const activeNote = notes.find(n => n.id === activeNoteId) || notes[0];

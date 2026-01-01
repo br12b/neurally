@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, Zap, AlertTriangle, RotateCcw, Trophy, ChevronsRight, Brain, Flame, Activity, BarChart3, X, Check, Keyboard, ArrowLeft, ArrowRight, TrendingUp } from 'lucide-react';
-import { Language } from '../types';
+import { Timer, Zap, AlertTriangle, RotateCcw, Trophy, ChevronsRight, Brain, Flame, Activity, BarChart3, X, Check, Keyboard, ArrowLeft, ArrowRight, TrendingUp, Medal } from 'lucide-react';
+import { Language, User } from '../types';
 
 interface SpeedRunProps {
   language: Language;
+  user?: User;
 }
 
 interface GameQuestion {
@@ -66,12 +67,13 @@ const QUESTIONS_EN: GameQuestion[] = [
   { q: "Iron rusts due to oxidation.", a: true, cat: 'CHE', rationale: "Reaction of iron and oxygen in the presence of water." },
 ];
 
-export default function SpeedRun({ language }: SpeedRunProps) {
+export default function SpeedRun({ language, user }: SpeedRunProps) {
   const isTr = language === 'tr';
   
   // Game State
   const [gameState, setGameState] = useState<'idle' | 'countdown' | 'running' | 'gameover'>('idle');
   const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(45);
   const [activeQuestions, setActiveQuestions] = useState<GameQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
@@ -86,6 +88,26 @@ export default function SpeedRun({ language }: SpeedRunProps) {
   const [shake, setShake] = useState(false);
   const [flash, setFlash] = useState<'none' | 'green' | 'red'>('none');
 
+  // Load High Score on Mount (User Specific)
+  useEffect(() => {
+    if (!user) return;
+    const key = `neurally_speedrun_highscore_${user.id}`;
+    const savedScore = localStorage.getItem(key);
+    if (savedScore) setHighScore(parseInt(savedScore, 10));
+    else setHighScore(0);
+  }, [user]);
+
+  // Save High Score on Game Over (User Specific)
+  useEffect(() => {
+    if (gameState === 'gameover' && user) {
+        if (score > highScore) {
+            setHighScore(score);
+            const key = `neurally_speedrun_highscore_${user.id}`;
+            localStorage.setItem(key, score.toString());
+        }
+    }
+  }, [gameState, score, highScore, user]);
+
   // Key Listener for Desktop
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -95,7 +117,7 @@ export default function SpeedRun({ language }: SpeedRunProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, currentQ]); // Dependency on currentQ prevents stale closures
+  }, [gameState, currentQ]); 
 
   // Load & Shuffle Questions
   useEffect(() => {
@@ -331,7 +353,9 @@ export default function SpeedRun({ language }: SpeedRunProps) {
                  <div className="grid grid-cols-3 gap-2 mb-8 text-white/60 text-xs font-mono uppercase tracking-widest">
                      <div className="border border-white/10 p-2 rounded">Arcade Mode</div>
                      <div className="border border-white/10 p-2 rounded">Time Attack</div>
-                     <div className="border border-white/10 p-2 rounded">Analytics</div>
+                     <div className="border border-white/10 p-2 rounded flex items-center justify-center gap-2">
+                         <Medal className="w-3 h-3 text-yellow-500" /> Best: {highScore.toLocaleString()}
+                     </div>
                  </div>
 
                  <p className="text-gray-300 mb-10 mx-auto font-sans text-lg font-light leading-relaxed">
@@ -428,9 +452,14 @@ export default function SpeedRun({ language }: SpeedRunProps) {
                             <span className="text-xs font-bold uppercase tracking-widest">Mission Complete</span>
                         </div>
                         <h2 className="font-serif text-6xl text-white mb-2 tracking-tighter">{getRank()}</h2>
-                        <p className="text-gray-400 text-sm">
-                            {isTr ? 'Toplam Skor' : 'Total Score'}: <span className="text-white font-bold">{score.toLocaleString()}</span>
-                        </p>
+                        <div className="flex items-center gap-4 text-sm">
+                            <p className="text-gray-400">
+                                {isTr ? 'Toplam Skor' : 'Total Score'}: <span className="text-white font-bold">{score.toLocaleString()}</span>
+                            </p>
+                            {score >= highScore && highScore > 0 && (
+                                <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] uppercase font-bold border border-yellow-500/50 rounded">New Record!</span>
+                            )}
+                        </div>
                      </div>
 
                      {/* Stats Grid */}
