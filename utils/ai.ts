@@ -65,7 +65,7 @@ class OpenRouterAdapter {
 
     let systemMessage = "You are a helpful AI tutor.";
     if (userContent.includes("Active Recall") || userContent.includes("Soru")) {
-        systemMessage = "You are an expert exam creator. Output strict JSON only. No markdown formatting like ```json.";
+        systemMessage = "You are an expert exam creator. IMPORTANT: Detect the language of the input text and generate the JSON response IN THE SAME LANGUAGE. Output strict JSON only. No markdown formatting like ```json.";
     } else if (userContent.includes("Key Points") || userContent.includes("Püf Noktaları")) {
         systemMessage = "You are a study summarizer. Output strict JSON only. No markdown formatting.";
     }
@@ -162,7 +162,7 @@ class GroqAdapter {
 
     let systemMessage = "You are a helpful AI tutor.";
     if (userContent.includes("Active Recall") || userContent.includes("Soru")) {
-        systemMessage = "You are an expert exam creator. Output strict JSON only. No markdown formatting like ```json.";
+        systemMessage = "You are an expert exam creator. IMPORTANT: Detect the language of the input text and generate the JSON response IN THE SAME LANGUAGE. Output strict JSON only. No markdown formatting like ```json.";
     } else if (userContent.includes("Key Points") || userContent.includes("Püf Noktaları")) {
         systemMessage = "You are a study summarizer. Output strict JSON only. No markdown formatting.";
     }

@@ -86,7 +86,30 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       let promptContent: any = "";
       let parts: any[] = [];
       
-      const systemPrompt = "Generate 10 Active Recall multiple-choice questions based strictly on the provided content. Focus on logic, causal relationships, and common misconceptions. Return ONLY JSON.";
+      // CRITICAL: Explicitly define the JSON structure in the prompt.
+      const jsonStructure = `
+      [
+        {
+          "id": 1,
+          "topicTag": "Subject",
+          "text": "Question text here?",
+          "options": [
+            { "id": "a", "text": "Option A", "isCorrect": false },
+            { "id": "b", "text": "Option B", "isCorrect": true }
+          ],
+          "rationale": "Explanation here."
+        }
+      ]
+      `;
+
+      // UPDATED PROMPT: Added strict language detection instructions
+      const systemPrompt = `Generate 10 Active Recall multiple-choice questions based strictly on the provided content. 
+      
+      CRITICAL INSTRUCTION: Detect the language of the provided content (e.g. Turkish or English) and generate ALL output (questions, options, rationales) IN THAT SAME LANGUAGE. Do not use English if the content is Turkish.
+
+      Focus on logic, causal relationships, and common misconceptions. 
+      Return ONLY a raw JSON array. Do not wrap in markdown code blocks.
+      Strictly follow this JSON structure for every item: ${jsonStructure}`;
 
       if (isPdf && pdfData) {
           parts = [
@@ -108,6 +131,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
         contents: promptContent,
         config: {
           responseMimeType: "application/json",
+          // We still keep this for Gemini native, but the prompt text above covers OpenRouter/Groq
           responseSchema: {
             type: Type.ARRAY,
             items: {
@@ -133,7 +157,9 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       });
       
       if (response.text) {
-          const generatedQuestions = JSON.parse(response.text) as Question[];
+          // Clean potential markdown just in case the adapter missed it
+          const cleanText = response.text.replace(/```json\n?|\n?```/g, "").trim();
+          const generatedQuestions = JSON.parse(cleanText) as Question[];
           onQuestionsGenerated(generatedQuestions.map((q, index) => ({ ...q, id: index + 1 })));
       } else {
           throw new Error("No text returned from AI");
