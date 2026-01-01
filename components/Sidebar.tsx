@@ -1,6 +1,6 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutGrid, Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket, LayoutList } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket, LayoutList, Network, Hexagon } from 'lucide-react';
 import { AppView, User, Language } from '../types';
 import { translations } from '../utils/translations';
 
@@ -18,7 +18,8 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
 
   const menuItems = [
     { id: 'dashboard', icon: Activity, label: t.dashboard }, 
-    { id: 'neurallist', icon: LayoutList, label: t.neurallist }, // UPDATED ITEM
+    { id: 'construct', icon: Network, label: t.construct }, 
+    { id: 'neurallist', icon: LayoutList, label: t.neurallist },
     { id: 'keypoints', icon: Lightbulb, label: t.keypoints }, 
     { id: 'quiz', icon: Brain, label: t.quiz },
     { id: 'speedrun', icon: Rocket, label: t.speedrun },
@@ -38,18 +39,19 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
       className="hidden md:flex flex-col w-[280px] h-screen border-r border-gray-100 bg-white relative z-50"
     >
       
-      {/* Brand - Dot Removed */}
+      {/* Brand - Reverted to Clean Serif */}
       <div className="h-32 flex flex-col justify-center px-8">
         <h1 
-          className="font-serif text-4xl font-semibold text-black tracking-tighter cursor-pointer hover:scale-[1.02] transition-transform origin-left" 
+          className="font-serif text-4xl font-medium text-black tracking-tighter cursor-pointer" 
           onClick={() => onChangeView('dashboard')}
         >
           Neurally
         </h1>
+        <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] mt-1 ml-0.5">Cognitive OS</p>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
         {menuItems.map((item) => {
           const isActive = activeView === item.id;
           const Icon = item.icon;
@@ -59,21 +61,12 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
               key={item.id}
               onClick={() => onChangeView(item.id as AppView)}
               className={`
-                relative group flex items-center w-full px-4 py-4 rounded-xl transition-colors duration-200 z-10
-                ${isActive ? 'text-white' : 'text-gray-400 hover:text-black'}
+                relative group flex items-center w-full px-4 py-3.5 rounded-lg transition-all duration-200 z-10
+                ${isActive ? 'text-black bg-gray-100 font-medium' : 'text-gray-500 hover:text-black hover:bg-gray-50'}
               `}
             >
-              {/* Magic Motion Background */}
-              {isActive && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-0 bg-black rounded-xl z-[-1]"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-
-              <Icon className={`w-5 h-5 relative z-10 ${isActive ? 'text-white' : 'text-current'}`} strokeWidth={1.5} />
-              <span className={`ml-4 font-sans text-sm tracking-wide relative z-10 ${isActive ? 'font-medium' : 'font-normal'}`}>
+              <Icon className={`w-4 h-4 relative z-10 ${isActive ? 'text-black' : 'text-gray-400 group-hover:text-black'}`} strokeWidth={1.5} />
+              <span className="ml-3 font-sans text-xs tracking-wide relative z-10">
                 {item.label}
               </span>
             </button>
@@ -81,43 +74,38 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
         })}
       </nav>
 
-      {/* Language & User */}
-      <div className="p-8 border-t border-gray-100 space-y-6 bg-white/50 backdrop-blur-sm">
+      {/* FOOTER: MINIMALIST PROFILE */}
+      <div className="p-8 border-t border-gray-100 bg-white">
         
-        {/* Language Toggle */}
-        <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg w-fit">
-           {(['tr', 'en'] as Language[]).map((lang) => (
-             <button 
-               key={lang}
-               onClick={() => setLanguage(lang)}
-               className="relative px-3 py-1 text-[10px] font-bold rounded z-10"
-             >
-               {language === lang && (
-                 <motion.div 
-                   layoutId="activeLang"
-                   className="absolute inset-0 bg-white shadow-sm rounded border border-gray-100 z-[-1]"
-                   transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                 />
-               )}
-               <span className="relative z-10" style={{ color: language === lang ? '#000' : '#9CA3AF' }}>
-                 {lang.toUpperCase()}
-               </span>
-             </button>
-           ))}
+        {/* Language Toggles */}
+        <div className="flex gap-2 mb-6">
+            {(['tr', 'en'] as Language[]).map((lang) => (
+                <button 
+                key={lang}
+                onClick={() => setLanguage(lang)}
+                className={`text-[10px] font-bold uppercase tracking-widest transition-all ${language === lang ? 'text-black border-b border-black' : 'text-gray-300 hover:text-gray-500'}`}
+                >
+                {lang}
+                </button>
+            ))}
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold font-mono border border-gray-200">
-             MY
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-black truncate">{user.name}</p>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider">{user.tier} Account</p>
-          </div>
-          <button onClick={onLogout} className="text-gray-400 hover:text-red-600 transition-colors">
-            <LogOut className="w-4 h-4" />
-          </button>
+        {/* User Info - Clean & Professional */}
+        <div className="flex items-start gap-3">
+            <img src={user.avatar} alt="User" className="w-8 h-8 rounded-full grayscale opacity-80" />
+            <div className="flex-1 min-w-0">
+                <h4 className="font-serif text-sm font-medium text-black truncate leading-tight">
+                    {user.name}
+                </h4>
+                <p className="text-[10px] font-mono text-gray-400 uppercase tracking-wider mt-0.5">
+                    {user.tier} Plan
+                </p>
+            </div>
+            <button onClick={onLogout} className="text-gray-300 hover:text-black transition-colors" title="Logout">
+                <LogOut className="w-4 h-4" />
+            </button>
         </div>
+
       </div>
     </motion.div>
   );

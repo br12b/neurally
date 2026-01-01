@@ -14,6 +14,7 @@ export const translations = {
       report: "Gelişim Raporu",
       speedrun: "Hız Tüneli",
       neurallist: "Neural List",
+      construct: "The Construct (Ağ)",
       about: "Hakkında & Rehber"
     },
     dashboard: {
@@ -42,6 +43,7 @@ export const translations = {
       report: "Audit Report",
       speedrun: "Speed Tunnel",
       neurallist: "Neural List",
+      construct: "The Construct",
       about: "About & Guide"
     },
     dashboard: {

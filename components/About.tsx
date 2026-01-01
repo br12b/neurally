@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Cpu, Brain, Repeat, ShieldCheck, Zap, Layers } from 'lucide-react';
+import { Repeat, Zap, Layers } from 'lucide-react';
 import { Language } from '../types';
 
 interface AboutProps {
@@ -20,8 +20,8 @@ export default function About({ language }: AboutProps) {
          </h1>
          <p className="text-2xl text-gray-500 font-light leading-relaxed">
             {isTr 
-              ? 'Neurally, sıradan bir çalışma aracı değildir. YKS sürecini "veri odaklı bir mühendislik problemi" olarak ele alan, yüksek performanslı bir zihin işletim sistemidir.' 
-              : 'Neurally is not a study tool. It is a high-performance mind operating system that treats the exam process as a "data-driven engineering problem".'}
+              ? 'Neurally, basit bir test uygulaması değil; öğrenme sürecini "veri odaklı bir mühendislik problemi" olarak ele alan, üniversite ve profesyonel seviyede bir zihin işletim sistemidir.' 
+              : 'Neurally is not a quiz app. It is a high-performance mind operating system designed for university and professional level learning, treating education as a "data-driven engineering problem".'}
          </p>
       </div>
 
@@ -34,8 +34,8 @@ export default function About({ language }: AboutProps) {
             </h2>
             <p className="text-gray-500 text-lg leading-relaxed mb-8">
                {isTr 
-                 ? 'Geleneksel "okuma ve altını çizme" yöntemleri verimsizdir. Neurally, beynin nöroplastisite yapısını manipüle ederek öğrenme hızını %300 artırmak için tasarlanmıştır.' 
-                 : 'Traditional "read and highlight" methods are inefficient. Neurally is designed to increase learning speed by 300% by manipulating the neuroplastic structure of the brain.'}
+                 ? 'Geleneksel "okuma ve altını çizme" yöntemleri modern akademi için verimsizdir. Neurally, nöroplastisiteyi manipüle ederek herhangi bir konudaki (Tıp, Hukuk, Mühendislik) öğrenme hızını %300 artırmak için tasarlanmıştır.' 
+                 : 'Traditional "read and highlight" methods are inefficient for modern academia. Neurally is designed to increase learning speed by 300% in any field (Med, Law, Eng) by manipulating neuroplasticity.'}
             </p>
             
             <div className="h-px w-full bg-gray-200"></div>
@@ -54,7 +54,7 @@ export default function About({ language }: AboutProps) {
                   </h3>
                   <p className="text-sm text-gray-600 leading-relaxed">
                      {isTr 
-                       ? 'Bilgiyi pasif olarak tüketmek yerine, onu zihinden "geri çağırmak" sinaptik bağları güçlendirir. Neurally, her seansta beyninizi bu efora zorlar.' 
+                       ? 'Bilgiyi pasif tüketmek yerine, zihinden "geri çağırmak" sinaptik bağları güçlendirir. Neurally, her seansta beyninizi bu efora zorlar.' 
                        : 'Instead of passively consuming information, "recalling" it from the mind strengthens synaptic bonds. Neurally forces your brain into this effort in every session.'}
                   </p>
                </div>
@@ -71,7 +71,7 @@ export default function About({ language }: AboutProps) {
                   </h3>
                   <p className="text-sm text-gray-600 leading-relaxed">
                      {isTr 
-                       ? 'Unutma eğrisini hacklemek için algoritma, bir bilgiyi tam unutmak üzereyken size sorar. Bu, kalıcı hafızaya geçişin en verimli yoludur.' 
+                       ? 'Unutma eğrisini hacklemek için algoritma, bir veriyi tam silinmek üzereyken size sorar. Bu, kalıcı hafızaya geçişin en verimli yoludur.' 
                        : 'To hack the forgetting curve, the algorithm asks you a piece of information just as you are about to forget it. This is the most efficient way to long-term memory.'}
                   </p>
                </div>
