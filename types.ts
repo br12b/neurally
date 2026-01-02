@@ -34,10 +34,11 @@ export interface User {
   email: string;
   avatar: string;
   tier: 'Free' | 'Scholar' | 'Fellow';
+  isAdmin?: boolean; // Added Admin Flag
 }
 
 export type QuizState = 'intro' | 'active' | 'summary' | 'completed';
 
-export type AppView = 'login' | 'dashboard' | 'quiz' | 'flashcards' | 'pomodoro' | 'notes' | 'methods' | 'report' | 'about' | 'schedule' | 'keypoints' | 'speedrun' | 'neurallist' | 'construct';
+export type AppView = 'login' | 'dashboard' | 'quiz' | 'flashcards' | 'pomodoro' | 'notes' | 'methods' | 'report' | 'about' | 'schedule' | 'keypoints' | 'speedrun' | 'neurallist' | 'construct' | 'admin';
 
 export type Language = 'tr' | 'en';

@@ -317,7 +317,7 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
   };
 
   return (
-    <div className="h-full flex flex-col max-w-4xl mx-auto px-6 py-12 overflow-hidden">
+    <div className="h-full flex flex-col max-w-4xl mx-auto px-6 py-12 overflow-hidden relative">
       
       {/* Top Bar */}
       <div className="flex items-end justify-between mb-12 border-b border-gray-100 pb-6">

@@ -7,6 +7,7 @@ interface SpeedRunProps {
   language: Language;
   user?: User;
   onExit: () => void;
+  demoMode?: boolean; // New Prop
 }
 
 interface GameQuestion {
@@ -87,7 +88,7 @@ const QUESTIONS_EN: GameQuestion[] = [
   { q: "Diamond is the hardest natural substance.", a: true, cat: 'CHE', rationale: "It scores 10 on the Mohs scale." },
 ];
 
-export default function SpeedRun({ language, user, onExit }: SpeedRunProps) {
+export default function SpeedRun({ language, user, onExit, demoMode = false }: SpeedRunProps) {
   const isTr = language === 'tr';
   
   // Game State
@@ -127,6 +128,27 @@ export default function SpeedRun({ language, user, onExit }: SpeedRunProps) {
         }
     }
   }, [gameState, score, highScore, user]);
+
+  // DEMO MODE: Auto Start
+  useEffect(() => {
+      if (demoMode && gameState === 'idle') {
+          startGame();
+      }
+  }, [demoMode, gameState]);
+
+  // DEMO MODE: Auto Play
+  useEffect(() => {
+      if (demoMode && gameState === 'running') {
+          const autoPlayTimer = setInterval(() => {
+              // Simulate highly skilled player (95% accuracy)
+              const currentQuestion = activeQuestions[currentQ % activeQuestions.length];
+              const willBeCorrect = Math.random() > 0.05; 
+              handleAnswer(willBeCorrect ? currentQuestion.a : !currentQuestion.a);
+          }, 1200); // Fast pace
+
+          return () => clearInterval(autoPlayTimer);
+      }
+  }, [demoMode, gameState, currentQ, activeQuestions]);
 
   // Key Listener for Desktop
   useEffect(() => {
@@ -395,15 +417,22 @@ export default function SpeedRun({ language, user, onExit }: SpeedRunProps) {
                       : 'Test your reflexes. Questions accelerate. Mistakes steal time, accuracy builds combos. Reach the end of the tunnel.'}
                  </p>
 
-                 <button 
-                   onClick={startGame}
-                   className="relative group/btn w-full py-6 bg-white text-black font-black text-2xl uppercase tracking-[0.2em] overflow-hidden transition-all hover:scale-105"
-                 >
-                    <span className="relative z-10 flex items-center justify-center gap-2">
-                        {isTr ? 'BAŞLAT' : 'IGNITE'} <ChevronsRight className="w-6 h-6" />
-                    </span>
-                    <div className="absolute inset-0 bg-blue-500 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 mix-blend-overlay"></div>
-                 </button>
+                 {!demoMode && (
+                     <button 
+                     onClick={startGame}
+                     className="relative group/btn w-full py-6 bg-white text-black font-black text-2xl uppercase tracking-[0.2em] overflow-hidden transition-all hover:scale-105"
+                     >
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                            {isTr ? 'BAŞLAT' : 'IGNITE'} <ChevronsRight className="w-6 h-6" />
+                        </span>
+                        <div className="absolute inset-0 bg-blue-500 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 mix-blend-overlay"></div>
+                     </button>
+                 )}
+                 {demoMode && (
+                     <div className="text-white/50 text-xs font-mono uppercase tracking-widest animate-pulse">
+                         AUTO-PILOT ENGAGED
+                     </div>
+                 )}
              </motion.div>
          )}
 
@@ -438,6 +467,7 @@ export default function SpeedRun({ language, user, onExit }: SpeedRunProps) {
                     {/* FALSE BUTTON */}
                     <button 
                        onClick={() => handleAnswer(false)}
+                       disabled={demoMode}
                        className="group relative w-64 h-40 perspective-500 transition-transform hover:scale-105 active:scale-95 outline-none"
                     >
                        <div className="absolute inset-0 bg-gradient-to-br from-red-900/80 to-black border border-red-900/50 skew-x-[-6deg] group-hover:border-red-500 transition-colors"></div>
@@ -453,6 +483,7 @@ export default function SpeedRun({ language, user, onExit }: SpeedRunProps) {
                     {/* TRUE BUTTON */}
                     <button 
                        onClick={() => handleAnswer(true)}
+                       disabled={demoMode}
                        className="group relative w-64 h-40 perspective-500 transition-transform hover:scale-105 active:scale-95 outline-none"
                     >
                        <div className="absolute inset-0 bg-gradient-to-bl from-emerald-900/80 to-black border border-emerald-900/50 skew-x-[6deg] group-hover:border-emerald-500 transition-colors"></div>

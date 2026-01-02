@@ -1,5 +1,5 @@
 {
   "name": "Neurally - Cognitive OS",
-  "description": "A high-performance cognitive operating system for students and lifelong learners, utilizing active recall and spaced repetition algorithms.",
+  "description": "Neurally, öğrenme sürecini veri odaklı bir mühendislik problemi olarak ele alan, yapay zeka destekli yüksek performanslı bir Bilişsel İşletim Sistemidir (Cognitive OS). Active Recall, Spaced Repetition ve Gemini AI ile öğrenme hızınızı artırın.",
   "requestFramePermissions": []
 }

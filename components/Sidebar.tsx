@@ -1,6 +1,6 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket, LayoutList, Network, Hexagon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket, LayoutList, Network, ShieldCheck } from 'lucide-react';
 import { AppView, User, Language } from '../types';
 import { translations } from '../utils/translations';
 
@@ -39,7 +39,7 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
       className="hidden md:flex flex-col w-[280px] h-screen border-r border-gray-100 bg-white relative z-50"
     >
       
-      {/* Brand - Reverted to Clean Serif */}
+      {/* Brand */}
       <div className="h-32 flex flex-col justify-center px-8">
         <h1 
           className="font-serif text-4xl font-medium text-black tracking-tighter cursor-pointer" 
@@ -51,7 +51,7 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar flex flex-col">
         {menuItems.map((item) => {
           const isActive = activeView === item.id;
           const Icon = item.icon;
@@ -72,22 +72,45 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
             </button>
           );
         })}
+
+        <div className="flex-1"></div>
+
+        {/* ADMIN BUTTON - RESTRICTED */}
+        {user.isAdmin && (
+            <div className="pt-4 mt-2 border-t border-gray-100 pb-2">
+                <button
+                onClick={() => onChangeView('admin')}
+                className={`
+                    relative group flex items-center w-full px-4 py-3.5 rounded-lg transition-all duration-200 z-10
+                    ${activeView === 'admin' ? 'bg-black text-white' : 'text-gray-500 hover:bg-red-50 hover:text-red-600'}
+                `}
+                >
+                <ShieldCheck className={`w-4 h-4 relative z-10 ${activeView === 'admin' ? 'text-white' : 'text-gray-400 group-hover:text-red-600'}`} strokeWidth={1.5} />
+                <span className="ml-3 font-mono text-[10px] uppercase font-bold tracking-widest relative z-10">
+                    Overwatch
+                </span>
+                </button>
+            </div>
+        )}
       </nav>
 
       {/* FOOTER: MINIMALIST PROFILE */}
       <div className="p-8 border-t border-gray-100 bg-white">
         
-        {/* Language Toggles */}
-        <div className="flex gap-2 mb-6">
-            {(['tr', 'en'] as Language[]).map((lang) => (
-                <button 
-                key={lang}
-                onClick={() => setLanguage(lang)}
-                className={`text-[10px] font-bold uppercase tracking-widest transition-all ${language === lang ? 'text-black border-b border-black' : 'text-gray-300 hover:text-gray-500'}`}
-                >
-                {lang}
-                </button>
-            ))}
+        {/* Special Actions */}
+        <div className="flex items-center gap-2 mb-6">
+             {/* Language Toggles */}
+            <div className="flex gap-2">
+                {(['tr', 'en'] as Language[]).map((lang) => (
+                    <button 
+                    key={lang}
+                    onClick={() => setLanguage(lang)}
+                    className={`text-[10px] font-bold uppercase tracking-widest transition-all ${language === lang ? 'text-black border-b border-black' : 'text-gray-300 hover:text-gray-500'}`}
+                    >
+                    {lang}
+                    </button>
+                ))}
+            </div>
         </div>
 
         {/* User Info - Clean & Professional */}
