@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Brain, Clock, Repeat, Mic, PenTool, ArrowUpRight } from 'lucide-react';

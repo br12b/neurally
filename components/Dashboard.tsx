@@ -1,12 +1,13 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, useAnimation, animate, AnimatePresence } from 'framer-motion';
-import { Zap, Trophy, ArrowRight, Sparkles, Plus, Loader2, Brain, Activity, Search, Users, Network, Globe, Terminal, Cpu, FileUp, UploadCloud, FileType, AlertTriangle, ShieldAlert, Check, X, CreditCard, Lock, Crown, Bitcoin, Wallet, QrCode, Copy } from 'lucide-react';
+import { Zap, Trophy, ArrowRight, Sparkles, Plus, Loader2, Brain, Activity, Search, Users, Network, Globe, Terminal, Cpu, FileUp, UploadCloud, FileType, AlertTriangle, ShieldAlert, Check, X, CreditCard, Lock, Crown, Bitcoin, Wallet, QrCode, Copy, Shield, Flame, Target, Star, Medal, Crosshair } from 'lucide-react';
 import { Type, Schema } from "@google/genai";
 import { createAIClient, generateFallbackQuestions } from '../utils/ai'; 
-import { Question, User, Language } from '../types';
+import { checkRateLimit, sanitizeInput, getRemainingQuota } from '../utils/security';
+import { Question, User, Language, Badge, DailyQuest } from '../types';
 import { translations } from '../utils/translations';
 import Marquee from './ui/Marquee';
-import { globalAudio } from '../utils/audio';
 
 interface DashboardProps {
   onQuestionsGenerated: (questions: Question[]) => void;
@@ -14,26 +15,16 @@ interface DashboardProps {
   language: Language;
 }
 
-// Counting Animation Component
-const Counter = ({ from, to, duration = 2.5 }: { from: number; to: number; duration?: number }) => {
-  const nodeRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const node = nodeRef.current;
-    if (!node) return;
-
-    const controls = animate(from, to, {
-      duration: duration,
-      ease: [0.16, 1, 0.3, 1],
-      onUpdate(value) {
-        node.textContent = value.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-      }
-    });
-
-    return () => controls.stop();
-  }, [from, to, duration]);
-
-  return <span ref={nodeRef} />;
+// Visual Component for Badge
+const BadgeIcon = ({ icon, locked }: { icon: string, locked: boolean }) => {
+    const IconMap: Record<string, any> = { zap: Zap, clock: Activity, globe: Globe, crown: Crown };
+    const LucideIcon = IconMap[icon] || Star;
+    
+    return (
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-all ${locked ? 'bg-gray-50 border-gray-200 text-gray-300' : 'bg-black text-white border-black shadow-lg'}`}>
+            {locked ? <Lock className="w-5 h-5" /> : <LucideIcon className="w-6 h-6" />}
+        </div>
+    );
 };
 
 export default function Dashboard({ onQuestionsGenerated, user, language }: DashboardProps) {
@@ -43,40 +34,37 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
   const [errorState, setErrorState] = useState<string | null>(null);
   const [isMockMode, setIsMockMode] = useState(false);
   
-  // UPGRADE MODAL STATE
-  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
-  const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'crypto'>('card');
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [userTier, setUserTier] = useState(user.tier); // Local state for immediate UI update
+  // Rate Limit State
+  const [quotaRemaining, setQuotaRemaining] = useState(getRemainingQuota('generate_quiz'));
+  
+  // Gamification Stats (Derived from User)
+  const stats = user.stats || {
+      level: 1, currentXP: 0, nextLevelXP: 1000, streakDays: 0, totalFocusMinutes: 0, rankTitle: "Initiate", badges: [], dailyQuests: []
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const t = translations[language].dashboard;
 
-  // Live Stats Simulation
-  const [activeUsers, setActiveUsers] = useState(1240);
-  const [totalSynapses, setTotalSynapses] = useState(843921);
-
   const currentDate = new Date().toLocaleDateString('en-GB').toUpperCase(); 
 
-  useEffect(() => {
-    const userInterval = setInterval(() => {
-      setActiveUsers(prev => prev + (Math.random() > 0.5 ? Math.floor(Math.random() * 3) : -Math.floor(Math.random() * 2)));
-    }, 3000);
-
-    const synapseInterval = setInterval(() => {
-      setTotalSynapses(prev => prev + Math.floor(Math.random() * 15));
-    }, 800);
-
-    return () => {
-      clearInterval(userInterval);
-      clearInterval(synapseInterval);
-    };
-  }, []);
-
   const generateQuestions = async (content: string, isPdf: boolean = false, pdfData: string | null = null) => {
-    if (!isPdf && (!content || content.length < 50)) {
+    // 1. SECURITY CHECK: Rate Limit
+    if (user.tier === 'Free') { // Free users are rate limited
+        const limitCheck = checkRateLimit('generate_quiz');
+        if (!limitCheck.allowed) {
+            alert(language === 'tr' 
+                ? `Günlük limit aşıldı. Neural Guard protokolü isteği reddetti. Bekleme süresi: ${limitCheck.waitTime}` 
+                : `Daily limit exceeded. Neural Guard protocol blocked request. Reset in: ${limitCheck.waitTime}`);
+            return;
+        }
+        setQuotaRemaining(prev => prev - 1);
+    }
+
+    // 2. SECURITY CHECK: Input Sanitization
+    const safeContent = sanitizeInput(content);
+
+    if (!isPdf && (!safeContent || safeContent.length < 50)) {
       alert("Lütfen en az 50 karakterlik bir metin girin.");
       return;
     }
@@ -124,36 +112,13 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
           ];
           promptContent = { parts: parts };
       } else {
-          promptContent = `Content: "${content.substring(0, 20000)}"\n\n${systemPrompt}`;
+          promptContent = `Content: "${safeContent}"\n\n${systemPrompt}`;
       }
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: promptContent,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.INTEGER },
-                text: { type: Type.STRING },
-                options: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: { id: { type: Type.STRING }, text: { type: Type.STRING }, isCorrect: { type: Type.BOOLEAN } },
-                    required: ["id", "text", "isCorrect"]
-                  },
-                },
-                rationale: { type: Type.STRING },
-                topicTag: { type: Type.STRING },
-              },
-              required: ["id", "text", "options", "rationale", "topicTag"]
-            }
-          }
-        }
+        config: { responseMimeType: "application/json" }
       });
       
       if (response.text) {
@@ -233,30 +198,11 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       }
   };
 
-  const handleSimulatePayment = () => {
-      setIsPaymentProcessing(true);
-      setTimeout(() => {
-          setIsPaymentProcessing(false);
-          setUserTier('Fellow'); // Upgrade to 'Fellow' (Architect Tier)
-          setIsUpgradeOpen(false);
-          setWalletConnected(false); // Reset wallet state
-          alert(paymentMethod === 'crypto' 
-            ? "Blockchain Transaction Verified. Welcome to Architect Tier."
-            : "Payment Authorized. Welcome to Architect Tier.");
-      }, paymentMethod === 'crypto' ? 4000 : 2000); // Crypto takes longer
-  };
-
-  const connectWallet = () => {
-      setIsPaymentProcessing(true);
-      setTimeout(() => {
-          setWalletConnected(true);
-          setIsPaymentProcessing(false);
-      }, 1000);
-  }
-
-  // Variants
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } } };
   const itemVariants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } } };
+
+  // Calculate Level Progress
+  const progressPercent = (stats.currentXP / stats.nextLevelXP) * 100;
 
   return (
     <motion.div 
@@ -269,53 +215,82 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       {/* 1. TOP MARQUEE */}
       <motion.div variants={itemVariants} className="mb-8 border-y border-gray-100 py-2 bg-white/50 backdrop-blur-sm">
          <Marquee 
-            text={`NEURALLY OS v2.5 // TIER: ${userTier.toUpperCase()} // ARCHITECTURE: ACTIVE RECALL // DATE: ${currentDate} // SYNC: 12ms //`} 
+            text={`NEURAL OS // USER: ${user.name.toUpperCase()} // LEVEL: ${stats.level} // SYNC: ACTIVE // NEURAL GUARD: MONITORING`} 
             className="font-mono text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]"
             repeat={4}
          />
       </motion.div>
 
-      {/* 2. LIVE DASHBOARD HEAD */}
-      <motion.div variants={itemVariants} className="mb-16 flex flex-col md:flex-row justify-between items-end gap-8">
-        <div>
-          <h1 className="font-serif text-8xl text-black mb-4 tracking-tighter leading-[0.8]">
-            {t.title}
-          </h1>
-          <div className="flex items-center gap-4">
-             <div className="flex items-center gap-2 px-3 py-1.5 border border-black rounded-full bg-white">
-                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${userTier === 'Fellow' ? 'bg-purple-500' : 'bg-emerald-500'}`}></div>
-                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-black">
-                    {userTier === 'Fellow' ? 'Architect Mode' : 'System Online'}
-                </span>
-             </div>
-             <p className="text-gray-400 font-mono text-xs uppercase tracking-widest">
-               {new Date().toLocaleDateString(language === 'tr' ? 'tr-TR' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-             </p>
+      {/* 2. GAMIFIED HEADER SECTION */}
+      <motion.div variants={itemVariants} className="mb-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
+          
+          {/* USER IDENTITY CARD */}
+          <div className="lg:col-span-8 flex flex-col justify-end">
+              <div className="flex items-end gap-6 mb-6">
+                  <div className="relative">
+                      <div className="w-24 h-24 rounded-2xl bg-black overflow-hidden border-2 border-white shadow-xl">
+                          <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover opacity-90" />
+                      </div>
+                      <div className="absolute -bottom-3 -right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm font-serif font-bold text-lg">
+                          {stats.level}
+                      </div>
+                  </div>
+                  <div>
+                      <div className="flex items-center gap-3 mb-1">
+                          <h1 className="font-serif text-5xl text-black tracking-tighter">{user.name}</h1>
+                          {user.tier === 'Fellow' && <Crown className="w-6 h-6 text-yellow-500 fill-yellow-500" />}
+                      </div>
+                      <p className="text-gray-400 font-mono text-xs uppercase tracking-widest flex items-center gap-2">
+                          <Medal className="w-3 h-3 text-black" /> {stats.rankTitle}
+                      </p>
+                  </div>
+              </div>
+              
+              {/* XP Progress Bar */}
+              <div className="w-full max-w-2xl">
+                  <div className="flex justify-between text-[10px] font-mono font-bold uppercase tracking-widest mb-2 text-gray-500">
+                      <span>XP Progress</span>
+                      <span>{stats.currentXP} / {stats.nextLevelXP} XP</span>
+                  </div>
+                  <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <motion.div 
+                         initial={{ width: 0 }}
+                         animate={{ width: `${progressPercent}%` }}
+                         transition={{ duration: 1, ease: "circOut" }}
+                         className="h-full bg-black rounded-full"
+                      />
+                  </div>
+              </div>
           </div>
-        </div>
-        
-        {/* Right Stats */}
-        <div className="flex gap-8">
-           <div className="text-right hidden md:block">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{language === 'tr' ? 'Aktif Nöronlar' : 'Active Nodes'}</p>
-              <p className="font-mono text-xl text-black tabular-nums">
-                 <Counter from={1000} to={activeUsers} duration={1} />
-              </p>
-           </div>
-           <div className="text-right hidden md:block">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{language === 'tr' ? 'Veri Akışı' : 'Data Stream'}</p>
-              <p className="font-mono text-xl text-black tabular-nums">
-                 <Counter from={800000} to={totalSynapses} duration={0.5} /> ops/s
-              </p>
-           </div>
-        </div>
+
+          {/* QUICK STATS & STREAK */}
+          <div className="lg:col-span-4 flex gap-4 items-end">
+              <div className="flex-1 bg-white border border-gray-200 p-6 rounded-2xl shadow-sm group hover:border-orange-200 transition-colors">
+                  <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Flame className="w-5 h-5" /></div>
+                      <span className="text-[10px] font-bold text-gray-300 uppercase">Day Streak</span>
+                  </div>
+                  <div className="text-4xl font-serif text-black">{stats.streakDays}</div>
+                  <div className="text-[10px] text-gray-400 mt-1 font-mono">Keep the fire burning</div>
+              </div>
+
+              <div className="flex-1 bg-white border border-gray-200 p-6 rounded-2xl shadow-sm group hover:border-purple-200 transition-colors">
+                  <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><Activity className="w-5 h-5" /></div>
+                      <span className="text-[10px] font-bold text-gray-300 uppercase">Focus Time</span>
+                  </div>
+                  <div className="text-4xl font-serif text-black">{Math.floor(stats.totalFocusMinutes / 60)}h</div>
+                  <div className="text-[10px] text-gray-400 mt-1 font-mono">{stats.totalFocusMinutes % 60}m this week</div>
+              </div>
+          </div>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
         
-        {/* INPUT SECTION */}
-        <div className="lg:col-span-8 space-y-8">
+        {/* LEFT COLUMN: ACTION & QUESTS */}
+        <div className="lg:col-span-8 space-y-12">
           
+          {/* AI INPUT SECTION */}
           <motion.div variants={itemVariants} className="relative group">
              {/* Header Label */}
              <div className="flex items-center justify-between mb-4 pl-1">
@@ -348,7 +323,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                 onDrop={handleDrop}
              >
                 <textarea 
-                  className={`w-full h-[450px] bg-white border p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'} ${errorState ? 'border-red-200' : ''}`}
+                  className={`w-full h-[350px] bg-white border p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'} ${errorState ? 'border-red-200' : ''}`}
                   placeholder={t.placeholder}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -372,9 +347,8 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                   )}
                 </AnimatePresence>
                 
+                {/* Decorative Corners */}
                 <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-black pointer-events-none"></div>
-                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-black pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-black pointer-events-none"></div>
                 <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-black pointer-events-none"></div>
              </div>
              
@@ -382,27 +356,25 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
              <div className="flex justify-between items-center mt-6">
                 <div className="flex items-center gap-4">
                     <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Upload Text File"
-                    className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
                     >
-                    <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">
-                        <Plus className="w-3 h-3" />
-                    </div>
-                    <span>{t.upload}</span>
-                    <input type="file" ref={fileInputRef} className="hidden" accept=".txt" onChange={handleFileUpload} />
+                        <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">
+                            <Plus className="w-3 h-3" />
+                        </div>
+                        <span>{t.upload}</span>
+                        <input type="file" ref={fileInputRef} className="hidden" accept=".txt" onChange={handleFileUpload} />
                     </button>
 
                     <button 
-                    onClick={() => pdfInputRef.current?.click()}
-                    title="Upload PDF Document"
-                    className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
+                        onClick={() => pdfInputRef.current?.click()}
+                        className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
                     >
-                    <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">
-                        <FileUp className="w-3 h-3" />
-                    </div>
-                    <span>PDF Analiz</span>
-                    <input type="file" ref={pdfInputRef} className="hidden" accept="application/pdf" onChange={handlePdfUpload} />
+                        <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">
+                            <FileUp className="w-3 h-3" />
+                        </div>
+                        <span>PDF Analiz</span>
+                        <input type="file" ref={pdfInputRef} className="hidden" accept="application/pdf" onChange={handlePdfUpload} />
                     </button>
                 </div>
 
@@ -412,7 +384,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                   onClick={() => generateQuestions(inputText)}
                   disabled={isProcessing || (inputText.length < 10 && !isProcessing)}
                   className={`
-                    px-12 py-5 bg-black text-white text-xs font-bold tracking-[0.2em] uppercase transition-all flex items-center gap-3 shadow-sharp hover:shadow-none hover:translate-x-1 hover:translate-y-1
+                    px-10 py-4 bg-black text-white text-xs font-bold tracking-[0.2em] uppercase transition-all flex items-center gap-3 shadow-sharp hover:shadow-none hover:translate-x-1 hover:translate-y-1
                     ${isProcessing ? 'opacity-80' : ''}
                   `}
                 >
@@ -422,70 +394,104 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
              </div>
           </motion.div>
 
-          {/* Quick Stats Row */}
-          <motion.div variants={itemVariants} className="grid grid-cols-3 gap-6 pt-8 border-t border-gray-100">
-             {[
-               { icon: Zap, label: t.streak, value: userTier === 'Fellow' ? '∞' : 0, sub: "DAYS" },
-               { icon: Trophy, label: t.points, value: userTier === 'Fellow' ? 950 : 0, sub: "XP" },
-               { icon: Activity, label: "FOCUS", value: userTier === 'Fellow' ? "98%" : "0%", sub: "EFFICIENCY" },
-             ].map((stat, i) => (
-                <div key={i} className="group p-6 border border-transparent hover:border-gray-100 hover:bg-gray-50/50 transition-all duration-300">
-                   <div className="flex items-center gap-2 mb-2 text-gray-400 group-hover:text-black transition-colors">
-                      <stat.icon className="w-4 h-4" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">{stat.label}</span>
-                   </div>
-                   <div className="flex items-baseline gap-2">
-                      <span className="text-4xl font-serif text-black">{stat.value}</span>
-                      <span className="text-xs font-mono text-gray-400">{stat.sub}</span>
-                   </div>
-                </div>
-             ))}
+          {/* DAILY QUESTS */}
+          <motion.div variants={itemVariants}>
+              <div className="flex items-center gap-2 mb-6 border-b border-gray-100 pb-2">
+                  <Target className="w-4 h-4 text-black" />
+                  <h3 className="font-serif text-xl font-medium">Daily Neural Calibration</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4">
+                  {stats.dailyQuests.map(quest => (
+                      <div key={quest.id} className="bg-white border border-gray-100 p-4 rounded-xl flex items-center justify-between group hover:border-black transition-colors">
+                          <div className="flex items-center gap-4">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${quest.completed ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                  {quest.completed ? <Check className="w-5 h-5" /> : <Crosshair className="w-5 h-5" />}
+                              </div>
+                              <div>
+                                  <h4 className={`font-serif text-lg ${quest.completed ? 'line-through text-gray-300' : 'text-black'}`}>{quest.title}</h4>
+                                  <div className="flex items-center gap-2 mt-1">
+                                      <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                          <div className="h-full bg-black rounded-full" style={{ width: `${(quest.current / quest.target) * 100}%` }}></div>
+                                      </div>
+                                      <span className="text-[10px] font-mono text-gray-400">{quest.current}/{quest.target}</span>
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1 rounded-lg border border-yellow-100">
+                              <span className="text-sm font-bold text-yellow-700">+{quest.xpReward}</span>
+                              <span className="text-[10px] font-bold text-yellow-600 uppercase">XP</span>
+                          </div>
+                      </div>
+                  ))}
+              </div>
           </motion.div>
 
         </div>
 
-        {/* RIGHT SIDEBAR - "Activity Feed" & Upgrade Box */}
-        <motion.div variants={itemVariants} className="lg:col-span-4 pl-0 lg:pl-8 border-l border-gray-100">
-           <div className="flex items-center justify-between mb-8">
-               <h3 className="font-serif text-2xl flex items-center gap-2">
-                 {t.recent}
-               </h3>
-               <div className="w-2 h-2 bg-gray-200 rounded-full"></div>
-           </div>
+        {/* RIGHT SIDEBAR: PROFILE & BADGES */}
+        <motion.div variants={itemVariants} className="lg:col-span-4 pl-0 lg:pl-8 border-l border-gray-100 space-y-12">
            
-           <div className="relative min-h-[300px] flex flex-col items-center justify-center border border-dashed border-gray-200 rounded-lg p-8 text-center mb-8">
-              <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                  <Activity className="w-6 h-6 text-gray-300" />
-              </div>
-              <h4 className="font-bold text-sm text-gray-400 mb-2">
-                 {userTier === 'Fellow' ? 'Sistem Aktif' : 'Sessizlik.'}
-              </h4>
-              <p className="text-xs text-gray-300 leading-relaxed">
-                  {userTier === 'Fellow' 
-                    ? 'Architect Tier avantajları aktif. Hız sınırlayıcılar kaldırıldı.' 
-                    : 'Henüz bir aktivite kaydedilmedi. İlk aktif hatırlama testini başlatmak için sol taraftaki alana ders notlarını veya bir PDF yükle.'}
-              </p>
+           {/* BADGES */}
+           <div>
+               <div className="flex items-center justify-between mb-6">
+                   <h3 className="font-serif text-xl flex items-center gap-2">
+                     Synaptic Badges
+                   </h3>
+                   <span className="text-xs font-mono text-gray-400">{stats.badges.filter(b => !b.isLocked).length}/{stats.badges.length}</span>
+               </div>
+               
+               <div className="grid grid-cols-4 gap-4">
+                   {stats.badges.map(badge => (
+                       <div key={badge.id} className="group relative flex flex-col items-center gap-2 cursor-pointer">
+                           <BadgeIcon icon={badge.icon} locked={badge.isLocked} />
+                           {/* Tooltip */}
+                           <div className="absolute -top-12 bg-black text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 pointer-events-none">
+                               {badge.name}
+                           </div>
+                       </div>
+                   ))}
+               </div>
            </div>
 
-           {/* UPGRADE CARD - ONLY SHOW IF NOT PRO */}
-           {userTier !== 'Fellow' && (
+           {/* RECENT ACTIVITY LOG */}
+           <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6">
+               <h3 className="font-serif text-lg mb-4">Neural Logs</h3>
+               <div className="space-y-4">
+                   {[
+                       { action: "Focus Session", time: "2h ago", xp: "+100 XP" },
+                       { action: "Quiz Completed", time: "5h ago", xp: "+450 XP" },
+                       { action: "Badge Unlocked", time: "1d ago", xp: "First Link" },
+                   ].map((log, i) => (
+                       <div key={i} className="flex justify-between items-center text-sm">
+                           <div className="flex items-center gap-3">
+                               <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+                               <span className="text-gray-600">{log.action}</span>
+                           </div>
+                           <div className="text-right">
+                               <div className="font-bold text-black text-xs">{log.xp}</div>
+                               <div className="text-[10px] text-gray-400">{log.time}</div>
+                           </div>
+                       </div>
+                   ))}
+               </div>
+           </div>
+
+           {/* UPGRADE CARD */}
+           {user.tier !== 'Fellow' && (
                <motion.div 
-                 onClick={() => setIsUpgradeOpen(true)}
                  initial={{ opacity: 0, scale: 0.95 }}
                  animate={{ opacity: 1, scale: 1 }}
                  whileHover={{ scale: 1.02 }}
                  transition={{ delay: 0.5 }}
-                 className="mt-4 bg-black text-white p-8 relative overflow-hidden group cursor-pointer shadow-2xl"
+                 className="bg-black text-white p-6 relative overflow-hidden group cursor-pointer shadow-xl rounded-xl"
                >
-                  <div className="absolute inset-0 bg-neutral-900 transform translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out"></div>
-                  
-                  {/* Shimmer Effect */}
                   <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
 
                   <div className="relative z-10">
                     <div className="flex justify-between items-start mb-4">
                         <div>
-                            <h4 className="font-serif text-2xl mb-1 flex items-center gap-2">
+                            <h4 className="font-serif text-xl mb-1 flex items-center gap-2">
                                {t.upgrade}
                             </h4>
                             <p className="text-gray-400 font-mono text-[10px] uppercase tracking-widest">
@@ -495,23 +501,21 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                         <Crown className="w-6 h-6 text-yellow-500" />
                     </div>
                     
-                    <ul className="space-y-2 mb-6 text-sm text-gray-300">
+                    <ul className="space-y-2 mb-6 text-xs text-gray-300">
+                        <li className="flex items-center gap-2"><Check className="w-3 h-3 text-green-500" /> 2x XP Multiplier</li>
+                        <li className="flex items-center gap-2"><Check className="w-3 h-3 text-green-500" /> Exclusive Badges</li>
                         <li className="flex items-center gap-2"><Check className="w-3 h-3 text-green-500" /> Unlimited AI Quizzes</li>
-                        <li className="flex items-center gap-2"><Check className="w-3 h-3 text-green-500" /> Cloud Sync</li>
-                        <li className="flex items-center gap-2"><Check className="w-3 h-3 text-green-500" /> Ghost Mode</li>
                     </ul>
 
                     <div className="flex justify-between items-center border-t border-white/20 pt-4">
-                        <span className="font-serif text-xl">₺99<span className="text-xs text-gray-500">/mo</span></span>
-                        <ArrowRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
+                        <span className="font-serif text-lg">₺99<span className="text-[10px] text-gray-500">/mo</span></span>
+                        <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-transform" />
                     </div>
                   </div>
                </motion.div>
            )}
         </motion.div>
       </div>
-      
-      {/* Upgrade Modal omitted for brevity, same as original */}
 
     </motion.div>
   );

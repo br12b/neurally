@@ -14,6 +14,10 @@ export const translations = {
       report: "Gelişim Raporu",
       speedrun: "Hız Tüneli",
       neurallist: "Neural List",
+      methods: "Metotlar",
+      podcast: "Neural Podcast",
+      language: "Dil Rotası",
+      edu: "Sınıfım",
       about: "Hakkında & Rehber"
     },
     dashboard: {
@@ -42,6 +46,10 @@ export const translations = {
       report: "Audit Report",
       speedrun: "Speed Tunnel",
       neurallist: "Neural List",
+      methods: "Methods",
+      podcast: "Neural Podcast",
+      language: "Language Path",
+      edu: "Classroom",
       about: "About & Guide"
     },
     dashboard: {

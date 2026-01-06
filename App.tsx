@@ -13,8 +13,11 @@ import Schedule from './components/Schedule';
 import KeyPoints from './components/KeyPoints'; 
 import SpeedRun from './components/SpeedRun';
 import NeuroMap from './components/NeuroMap';
+import NeuralPodcast from './components/NeuralPodcast';
+import EduClassroom from './components/EduClassroom';
+import LanguagePath from './components/LanguagePath';
 import BackgroundFlow from './components/BackgroundFlow'; 
-import { AppView, Question, User, Language, Flashcard } from './types';
+import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './utils/firebase';
@@ -30,22 +33,51 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [language, setLanguage] = useState<Language>('tr');
 
+  // Helper to generate default stats for new users
+  const generateDefaultStats = (): UserStats => ({
+      level: 1,
+      currentXP: 120,
+      nextLevelXP: 500,
+      streakDays: 3,
+      totalFocusMinutes: 45,
+      rankTitle: "Neural Initiate",
+      badges: [
+          { id: 'b1', name: 'First Link', description: 'Created first account', icon: 'zap', isLocked: false, unlockedAt: new Date().toISOString() },
+          { id: 'b2', name: 'Deep Diver', description: 'Complete 5 Focus Sessions', icon: 'clock', isLocked: true },
+          { id: 'b3', name: 'Polyglot', description: 'Unlock Language Module', icon: 'globe', isLocked: true },
+          { id: 'b4', name: 'Architect', description: 'Reach Level 10', icon: 'crown', isLocked: true },
+      ],
+      dailyQuests: [
+          { id: 'q1', title: 'Complete 1 Quiz', target: 1, current: 0, xpReward: 50, completed: false, type: 'quiz' },
+          { id: 'q2', title: 'Review 10 Flashcards', target: 10, current: 4, xpReward: 30, completed: false, type: 'flashcard' },
+          { id: 'q3', title: '25m Focus Session', target: 25, current: 15, xpReward: 100, completed: false, type: 'focus' },
+      ]
+  });
+
   // Firebase Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        // Retrieve stats from local storage if available to persist game state
+        const localStatsKey = `neurally_stats_${firebaseUser.uid}`;
+        const savedStats = localStorage.getItem(localStatsKey);
+        const stats = savedStats ? JSON.parse(savedStats) : generateDefaultStats();
+
         const appUser: User = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || "Anonymous Scholar",
             email: firebaseUser.email || "No Email",
             avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'U'}&background=000000&color=fff`,
-            tier: 'Scholar'
+            tier: 'Scholar',
+            stats: stats
         };
         setUser(appUser);
       } else {
         const storedUser = localStorage.getItem('neurally_user');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
+          // Ensure stats exist even on stored user
+          if (!parsedUser.stats) parsedUser.stats = generateDefaultStats();
           setUser(parsedUser);
         } else {
           setUser(null);
@@ -58,7 +90,16 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // LOAD User Data when User changes
+  // Sync Stats to LocalStorage whenever user changes
+  useEffect(() => {
+      if (user && user.stats) {
+          const localStatsKey = `neurally_stats_${user.id}`;
+          localStorage.setItem(localStatsKey, JSON.stringify(user.stats));
+          localStorage.setItem('neurally_user', JSON.stringify(user));
+      }
+  }, [user]);
+
+  // LOAD User Flashcards
   useEffect(() => {
     if (user) {
         const key = `neurally_flashcards_${user.id}`;
@@ -73,7 +114,7 @@ function App() {
     }
   }, [user]);
 
-  // SAVE User Data
+  // SAVE User Flashcards
   useEffect(() => {
     if (user && flashcards.length > 0) {
         const key = `neurally_flashcards_${user.id}`;
@@ -91,6 +132,8 @@ function App() {
   };
 
   const handleLogin = (userData: User) => {
+    // Add stats if missing
+    if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
     localStorage.setItem('neurally_user', JSON.stringify(userData));
   };
@@ -180,6 +223,15 @@ function App() {
               )}
               {activeView === 'keypoints' && (
                 <KeyPoints language={language} />
+              )}
+              {activeView === 'podcast' && (
+                <NeuralPodcast language={language} />
+              )}
+              {activeView === 'edu' && (
+                <EduClassroom language={language} user={user} />
+              )}
+              {activeView === 'language' && (
+                <LanguagePath language={language} />
               )}
               {activeView === 'pomodoro' && <Pomodoro />}
               {activeView === 'notes' && <SmartNotes user={user} />}

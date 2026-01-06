@@ -1,19 +1,20 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, Zap, AlertTriangle, RotateCcw, Trophy, ChevronsRight, Brain, Flame, Activity, BarChart3, X, Check, Keyboard, ArrowLeft, ArrowRight, TrendingUp, Medal, LogOut } from 'lucide-react';
+import { Timer, Zap, RotateCcw, Trophy, ChevronsRight, Flame, Activity, X, Check, Keyboard, ArrowLeft, ArrowRight, TrendingUp, Medal, LogOut, Disc } from 'lucide-react';
 import { Language, User } from '../types';
 
 interface SpeedRunProps {
   language: Language;
   user?: User;
   onExit: () => void;
-  demoMode?: boolean; // New Prop
+  demoMode?: boolean; 
 }
 
 interface GameQuestion {
   q: string;
   a: boolean;
-  cat: string; // Category: BIO, HIS, PHY, GEN, CHE
+  cat: string;
   rationale: string;
 }
 
@@ -24,10 +25,8 @@ interface Mistake {
   rationale: string;
 }
 
-// --- EXTENDED QUESTION POOLS WITH CATEGORIES ---
-
+// --- EXTENDED QUESTION POOLS ---
 const QUESTIONS_TR: GameQuestion[] = [
-  // Biyoloji
   { q: "Mitokondri hücrenin enerji santralidir.", a: true, cat: 'BIO', rationale: "Oksijenli solunum burada gerçekleşir ve ATP üretilir." },
   { q: "DNA'nın yapısında Urasil bazı bulunur.", a: false, cat: 'BIO', rationale: "Urasil sadece RNA'da bulunur, DNA'da Timin vardır." },
   { q: "Enzimler tepkimeden değişmeden çıkar.", a: true, cat: 'BIO', rationale: "Enzimler biyolojik katalizörlerdir, harcanmazlar." },
@@ -35,35 +34,17 @@ const QUESTIONS_TR: GameQuestion[] = [
   { q: "Mantar bir bitki türüdür.", a: false, cat: 'BIO', rationale: "Mantarlar ayrı bir alemdir, fotosentez yapamazlar." },
   { q: "Ribozom zarlı bir organeldir.", a: false, cat: 'BIO', rationale: "Ribozom zarsızdır ve tüm canlılarda bulunur." },
   { q: "Fotosentez sadece gündüz olur.", a: false, cat: 'BIO', rationale: "Yapay ışıkta da fotosentez gerçekleşebilir." },
-  { q: "O grubu kan genel vericidir.", a: true, cat: 'BIO', rationale: "Antijen içermediği için diğer gruplara verilebilir." },
-  // Fizik & Kimya
   { q: "Su donduğunda hacmi artar.", a: true, cat: 'PHY', rationale: "Su donarken hidrojen bağları nedeniyle genleşen nadir sıvılardandır." },
   { q: "Işık sesten daha yavaş yayılır.", a: false, cat: 'PHY', rationale: "Işık hızı (300.000 km/s), ses hızından (340 m/s) çok daha fazladır." },
-  { q: "Bir kilo demir, bir kilo pamuktan ağırdır.", a: false, cat: 'PHY', rationale: "Kütleleri eşittir (1kg = 1kg). Hacimleri farklıdır." },
   { q: "Atomun çekirdeğinde proton ve elektron bulunur.", a: false, cat: 'CHE', rationale: "Çekirdekte proton ve nötron bulunur, elektronlar yörüdedir." },
-  { q: "Asitlerin pH değeri 7'den küçüktür.", a: true, cat: 'CHE', rationale: "0-7 arası asit, 7 nötr, 7-14 arası bazdır." },
   { q: "Ses boşlukta yayılmaz.", a: true, cat: 'PHY', rationale: "Ses mekanik bir dalgadır, maddesel ortam gerekir." },
-  { q: "Güneş bir yıldızdır.", a: true, cat: 'PHY', rationale: "Güneş sistemimizin merkezindeki orta büyüklükte bir yıldızdır." },
-  { q: "Altın paslanmaz.", a: true, cat: 'CHE', rationale: "Altın soy bir metaldir, oksijenle kolay tepkimeye girmez." },
-  // Tarih & Coğrafya
-  { q: "Türkiye'nin en yüksek dağı Ağrı Dağı'dır.", a: true, cat: 'GEO', rationale: "5137 metre ile en yüksek zirvedir." },
   { q: "İstanbul 1453 yılında fethedilmiştir.", a: true, cat: 'HIS', rationale: "Fatih Sultan Mehmet tarafından fethedildi." },
   { q: "Malazgirt Savaşı 1923'te yapılmıştır.", a: false, cat: 'HIS', rationale: "1071 yılında yapılmıştır. 1923 Cumhuriyet'in ilanıdır." },
-  { q: "Türkiye'nin başkenti İstanbul'dur.", a: false, cat: 'GEO', rationale: "Başkent Ankara'dır." },
   { q: "Piri Reis haritacıdır.", a: true, cat: 'HIS', rationale: "Dünya haritası ve Kitab-ı Bahriye ile tanınır." },
-  { q: "Çin Seddi uzaydan çıplak gözle görülür.", a: false, cat: 'GEN', rationale: "Bu yaygın bir efsanedir, çıplak gözle görülemez." },
-  { q: "Kutup ayıları Güney Kutbu'nda yaşar.", a: false, cat: 'GEO', rationale: "Kutup ayıları Kuzey Kutbu'nda (Arktik) yaşar." },
-  { q: "Lozan Antlaşması Türkiye'nin tapusudur.", a: true, cat: 'HIS', rationale: "Bağımsızlığın uluslararası tescilidir." },
-  // Genel
   { q: "Pi sayısı tam olarak 3'tür.", a: false, cat: 'GEN', rationale: "Yaklaşık 3,14'tür, sonsuza kadar gider." },
-  { q: "Satrançta en önemli taş Şah'tır.", a: true, cat: 'GEN', rationale: "Şah düşerse oyun biter." },
-  { q: "Google bir arama motorudur.", a: true, cat: 'GEN', rationale: "Web sayfalarını indeksleyen bir sistemdir." },
-  { q: "Balıklar gözlerini kırpar.", a: false, cat: 'BIO', rationale: "Balıkların çoğunun göz kapağı yoktur." },
-  { q: "Bir yıl 365 gün 6 saattir.", a: true, cat: 'GEN', rationale: "Bu yüzden 4 yılda bir Şubat 29 çeker." },
 ];
 
 const QUESTIONS_EN: GameQuestion[] = [
-  // Science
   { q: "Mitochondria is the powerhouse of the cell.", a: true, cat: 'BIO', rationale: "It generates most of the chemical energy needed." },
   { q: "Light travels faster than sound.", a: true, cat: 'PHY', rationale: "Light: ~300,000 km/s, Sound: ~340 m/s." },
   { q: "H2O is the chemical formula for salt.", a: false, cat: 'CHE', rationale: "H2O is water. Salt is NaCl." },
@@ -71,21 +52,11 @@ const QUESTIONS_EN: GameQuestion[] = [
   { q: "Electrons have a positive charge.", a: false, cat: 'CHE', rationale: "Electrons are negative, Protons are positive." },
   { q: "Water expands when it freezes.", a: true, cat: 'PHY', rationale: "Due to crystal lattice structure of ice." },
   { q: "Venus is the hottest planet.", a: true, cat: 'PHY', rationale: "Due to its thick atmosphere and greenhouse effect." },
-  { q: "Spiders are insects.", a: false, cat: 'BIO', rationale: "Spiders are arachnids, having 8 legs." },
   { q: "Sound cannot travel in a vacuum.", a: true, cat: 'PHY', rationale: "Sound requires a medium like air or water." },
-  // History & Geo
   { q: "The Ottoman Empire fell in 1923.", a: true, cat: 'HIS', rationale: "Replaced by the Republic of Turkey." },
   { q: "The Amazon is the longest river.", a: false, cat: 'GEO', rationale: "The Nile is traditionally considered longer." },
-  { q: "Mount Everest is the highest peak.", a: true, cat: 'GEO', rationale: "8,848 meters above sea level." },
-  { q: "Tokyo is the capital of Japan.", a: true, cat: 'GEO', rationale: "It is the political and economic center." },
-  { q: "World War II ended in 1945.", a: true, cat: 'HIS', rationale: "Ended with the surrender of Japan." },
-  { q: "Australia is a country and a continent.", a: true, cat: 'GEO', rationale: "It is the only country that is also a continent." },
-  // General
   { q: "A tomato is a fruit.", a: true, cat: 'GEN', rationale: "Botanically, it develops from a flower ovary." },
   { q: "Iron rusts due to oxidation.", a: true, cat: 'CHE', rationale: "Reaction of iron and oxygen in the presence of water." },
-  { q: "Sharks are mammals.", a: false, cat: 'BIO', rationale: "Sharks are fish." },
-  { q: "The Great Wall of China is visible from space.", a: false, cat: 'GEN', rationale: "It is not visible to the naked eye from orbit." },
-  { q: "Diamond is the hardest natural substance.", a: true, cat: 'CHE', rationale: "It scores 10 on the Mohs scale." },
 ];
 
 export default function SpeedRun({ language, user, onExit, demoMode = false }: SpeedRunProps) {
@@ -95,7 +66,7 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
   const [gameState, setGameState] = useState<'idle' | 'countdown' | 'running' | 'gameover'>('idle');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(45);
+  const [timeLeft, setTimeLeft] = useState(60);
   const [activeQuestions, setActiveQuestions] = useState<GameQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   
@@ -105,11 +76,9 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
   
   // Visual State
   const [combo, setCombo] = useState(0);
-  const [speed, setSpeed] = useState(1);
-  const [shake, setShake] = useState(false);
-  const [flash, setFlash] = useState<'none' | 'green' | 'red'>('none');
+  const [feedbackColor, setFeedbackColor] = useState<'neutral' | 'correct' | 'wrong'>('neutral');
 
-  // Load High Score on Mount (User Specific)
+  // Load High Score
   useEffect(() => {
     if (!user) return;
     const key = `neurally_speedrun_highscore_${user.id}`;
@@ -118,7 +87,7 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
     else setHighScore(0);
   }, [user]);
 
-  // Save High Score on Game Over (User Specific)
+  // Save High Score
   useEffect(() => {
     if (gameState === 'gameover' && user) {
         if (score > highScore) {
@@ -129,28 +98,7 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
     }
   }, [gameState, score, highScore, user]);
 
-  // DEMO MODE: Auto Start
-  useEffect(() => {
-      if (demoMode && gameState === 'idle') {
-          startGame();
-      }
-  }, [demoMode, gameState]);
-
-  // DEMO MODE: Auto Play
-  useEffect(() => {
-      if (demoMode && gameState === 'running') {
-          const autoPlayTimer = setInterval(() => {
-              // Simulate highly skilled player (95% accuracy)
-              const currentQuestion = activeQuestions[currentQ % activeQuestions.length];
-              const willBeCorrect = Math.random() > 0.05; 
-              handleAnswer(willBeCorrect ? currentQuestion.a : !currentQuestion.a);
-          }, 1200); // Fast pace
-
-          return () => clearInterval(autoPlayTimer);
-      }
-  }, [demoMode, gameState, currentQ, activeQuestions]);
-
-  // Key Listener for Desktop
+  // Keyboard Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (gameState !== 'running') return;
@@ -161,14 +109,12 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState, currentQ]); 
 
-  // Load & Shuffle Questions
-  useEffect(() => {
-    loadQuestions();
-  }, [language, isTr]);
+  // Initialize
+  useEffect(() => { loadQuestions(); }, [language, isTr]);
 
   const loadQuestions = () => {
     const pool = isTr ? [...QUESTIONS_TR] : [...QUESTIONS_EN];
-    // Fisher-Yates Shuffle
+    // Shuffle
     for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -176,13 +122,11 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
     setActiveQuestions(pool);
   };
 
-  // Timer Logic
+  // Timer
   useEffect(() => {
     let interval: any;
     if (gameState === 'running' && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
+      interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
     } else if (timeLeft === 0 && gameState === 'running') {
       endGame();
     }
@@ -192,9 +136,8 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
   const startGame = () => {
     loadQuestions();
     setScore(0);
-    setTimeLeft(45);
+    setTimeLeft(60);
     setCurrentQ(0);
-    setSpeed(1);
     setCombo(0);
     setMistakes([]);
     setCatStats({});
@@ -204,7 +147,6 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
 
   const endGame = () => {
     setGameState('gameover');
-    setSpeed(0.1); // Slow down tunnel
   };
 
   const updateStats = (category: string, isCorrect: boolean) => {
@@ -227,410 +169,242 @@ export default function SpeedRun({ language, user, onExit, demoMode = false }: S
     updateStats(question.cat, isCorrect);
 
     if (isCorrect) {
-       // Correct!
        const comboMultiplier = Math.min(combo + 1, 5);
        setScore(s => s + (100 * comboMultiplier));
        setCombo(c => c + 1);
-       
-       // Visual Feedback
-       setSpeed(s => Math.min(s + 0.5, 5)); 
-       setFlash('green');
-       setTimeout(() => setFlash('none'), 150);
-       
+       setFeedbackColor('correct');
     } else {
-       // Wrong!
        setCombo(0);
-       setSpeed(0.5); 
-       setShake(true);
-       setFlash('red');
-       
-       // Log Mistake
+       setFeedbackColor('wrong');
        setMistakes(prev => [...prev, {
            question: question.q,
            correctAnswer: question.a,
            userAnswer: answer,
            rationale: question.rationale
        }]);
-
-       setTimeout(() => {
-         setShake(false);
-         setFlash('none');
-         setSpeed(1); 
-       }, 400);
-       
-       // Penalty
        setTimeLeft(t => Math.max(0, t - 5));
     }
-    // Always move next
+
+    setTimeout(() => setFeedbackColor('neutral'), 300);
     setCurrentQ(prev => prev + 1);
   };
 
   const getRank = () => {
       if (score > 5000) return isTr ? "Nöral Mimar" : "Neural Architect";
       if (score > 3000) return isTr ? "Veri Gezgini" : "Data Drifter";
-      if (score > 1000) return isTr ? "Çırak Bağlantı" : "Novice Node";
+      if (score > 1000) return isTr ? "Bağlantı" : "Node";
       return isTr ? "Çevrimdışı" : "Offline Entity";
   };
 
+  // --- RENDERING ---
+  const bgColor = feedbackColor === 'correct' ? 'bg-emerald-950/30' : feedbackColor === 'wrong' ? 'bg-red-950/30' : 'bg-neutral-950';
+
   return (
-    <div className="relative w-full h-full overflow-hidden bg-black flex flex-col items-center justify-center select-none font-sans">
+    <div className={`relative w-full h-full overflow-hidden ${bgColor} flex flex-col items-center justify-center font-sans transition-colors duration-300`}>
       
-      {/* --- 3D HYPER TUNNEL ENGINE --- */}
-      <div className="absolute inset-0 perspective-1000 pointer-events-none z-0">
-        
-        {/* Dynamic Color Overlay based on Combo */}
-        <div className={`absolute inset-0 z-10 transition-colors duration-500 mix-blend-overlay
-            ${combo >= 5 ? 'bg-blue-900/60' : combo >= 3 ? 'bg-purple-900/40' : 'bg-transparent'}
-        `}></div>
-
-        {/* Floor Grid */}
-        <div 
-            className="absolute bottom-[-50%] left-[-50%] w-[200%] h-[200%] bg-grid-white opacity-20"
-            style={{
-                backgroundSize: '80px 80px',
-                backgroundImage: `
-                    linear-gradient(to right, rgba(255,255,255,${0.1 + (combo*0.05)}) 1px, transparent 1px), 
-                    linear-gradient(to bottom, rgba(255,255,255,${0.1 + (combo*0.05)}) 1px, transparent 1px)
-                `,
-                transform: 'rotateX(80deg)',
-                animation: `tunnelFlow ${0.5 / (speed || 0.1)}s linear infinite`,
-                boxShadow: 'inset 0 0 100px 100px black'
-            }}
-        />
-        
-        {/* Ceiling Grid */}
-        <div 
-            className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-grid-white opacity-20"
-            style={{
-                backgroundSize: '80px 80px',
-                backgroundImage: `
-                    linear-gradient(to right, rgba(255,255,255,${0.1 + (combo*0.05)}) 1px, transparent 1px), 
-                    linear-gradient(to bottom, rgba(255,255,255,${0.1 + (combo*0.05)}) 1px, transparent 1px)
-                `,
-                transform: 'rotateX(-80deg)',
-                animation: `tunnelFlow ${0.5 / (speed || 0.1)}s linear infinite`,
-                boxShadow: 'inset 0 0 100px 100px black'
-            }}
-        />
-
-        {/* Warp Speed Lines (Only when running) */}
-        {gameState === 'running' && (
-           <div className="absolute inset-0 z-0">
-              {[...Array(25)].map((_, i) => (
-                  <div 
-                    key={i}
-                    className="absolute bg-white/60 w-[2px]"
-                    style={{
-                        height: `${100 + (speed * 50)}px`, 
-                        left: `${Math.random() * 100}%`,
-                        top: `${Math.random() * 100}%`,
-                        opacity: Math.random(),
-                        animation: `rain ${0.2 / (speed || 0.1)}s linear infinite`,
-                        boxShadow: '0 0 10px white'
-                    }}
-                  />
-              ))}
-           </div>
-        )}
-
-        {/* FLASH EFFECT */}
-        {flash !== 'none' && (
-            <div className={`absolute inset-0 z-50 mix-blend-overlay ${flash === 'green' ? 'bg-green-500' : 'bg-red-600'}`}></div>
-        )}
+      {/* 1. AMBIENT BACKGROUND (The Void) */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+          <div className="absolute inset-0 bg-neutral-950"></div>
+          {/* Subtle Radial Gradient to Focus Center */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(40,40,40,0.5)_0%,rgba(0,0,0,1)_100%)]"></div>
+          
+          {/* Animated Particles (Stars/Data) */}
+          {gameState === 'running' && [...Array(20)].map((_, i) => (
+             <motion.div 
+               key={i}
+               className="absolute w-1 h-1 bg-white rounded-full opacity-20"
+               initial={{ 
+                   x: Math.random() * window.innerWidth, 
+                   y: Math.random() * window.innerHeight, 
+                   scale: 0 
+               }}
+               animate={{ 
+                   scale: [0, 1.5, 0],
+                   opacity: [0, 0.5, 0],
+                   y: [null, Math.random() * window.innerHeight] // Simple float effect
+               }}
+               transition={{ 
+                   duration: Math.random() * 2 + 1, 
+                   repeat: Infinity,
+                   ease: "linear"
+               }}
+             />
+          ))}
       </div>
 
-      {/* --- HUD --- */}
-      {/* EXIT BUTTON - ALWAYS VISIBLE IN TOP RIGHT */}
-      <div className="absolute top-6 right-6 z-50">
-        <button 
-            onClick={onExit}
-            className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white/50 hover:text-white transition-all backdrop-blur-sm border border-white/5 group"
-            title={isTr ? "Çıkış" : "Exit"}
-        >
-            <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        </button>
-      </div>
-
-      {gameState !== 'idle' && gameState !== 'gameover' && (
-        <div className="absolute top-6 left-6 flex justify-between items-start z-30 pointer-events-none">
-            <div className="text-white relative group">
-                <p className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.2em] mb-1">Score</p>
-                <h2 className="font-serif text-6xl tabular-nums tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
-                    {score.toLocaleString()}
-                </h2>
-                {combo > 1 && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
+      {/* 2. HUD LAYER */}
+      <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-8">
+          {/* Top Bar */}
+          <div className="flex justify-between items-start">
+             {/* Score */}
+             <div className="text-white">
+                 <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40 mb-1">SCORE</div>
+                 <div className="text-4xl font-serif">{score.toLocaleString()}</div>
+                 {combo > 1 && (
+                     <motion.div 
+                        initial={{ opacity: 0, y: 5 }} 
                         animate={{ opacity: 1, y: 0 }}
-                        key={combo}
-                        className="absolute -bottom-8 left-0 flex items-center gap-1 font-bold italic text-yellow-400 text-lg"
-                    >
-                        <Flame className="w-4 h-4 fill-yellow-400" /> {combo}x SURGE
-                    </motion.div>
-                )}
-            </div>
-        </div>
-      )}
-
-      {/* Center Timer for HUD */}
-      {gameState !== 'idle' && gameState !== 'gameover' && (
-         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-             <div className={`
-                    flex items-center gap-3 font-mono text-3xl font-bold px-4 py-2 rounded border
-                    ${timeLeft < 10 ? 'text-red-500 border-red-500 bg-red-950/50 animate-pulse' : 'text-white border-white/20 bg-black/50'}
-                `}>
-                    <Timer className="w-6 h-6" /> {timeLeft}s
-                </div>
-         </div>
-      )}
-
-      {/* --- CONTENT LAYER --- */}
-      <div className={`relative z-20 w-full max-w-5xl mx-auto flex flex-col items-center justify-center transition-transform duration-100 ${shake ? 'translate-x-2 rotate-1' : ''}`}>
-         
-         {/* IDLE SCREEN */}
-         {gameState === 'idle' && (
-             <motion.div 
-               initial={{ opacity: 0, scale: 0.9 }}
-               animate={{ opacity: 1, scale: 1 }}
-               className="text-center bg-black/60 backdrop-blur-xl p-16 border border-white/10 shadow-[0_0_100px_rgba(0,0,0,1)] relative overflow-hidden group max-w-2xl"
-             >
-                 {/* Decorative background pulse */}
-                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
-
-                 <Zap className="w-20 h-20 text-white mx-auto mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" />
-                 
-                 <h1 className="font-serif text-7xl text-white mb-6 italic tracking-tighter">
-                    {isTr ? 'HIZ TÜNELİ' : 'SPEED TUNNEL'}
-                 </h1>
-                 
-                 <div className="grid grid-cols-3 gap-2 mb-8 text-white/60 text-xs font-mono uppercase tracking-widest">
-                     <div className="border border-white/10 p-2 rounded">Arcade Mode</div>
-                     <div className="border border-white/10 p-2 rounded">Time Attack</div>
-                     <div className="border border-white/10 p-2 rounded flex items-center justify-center gap-2">
-                         <Medal className="w-3 h-3 text-yellow-500" /> Best: {highScore.toLocaleString()}
-                     </div>
-                 </div>
-
-                 <p className="text-gray-300 mb-10 mx-auto font-sans text-lg font-light leading-relaxed">
-                    {isTr 
-                      ? 'Reflekslerini test et. Sorular hızlanacak. Yanlış cevaplar zamanını çalar, doğrular kombo yapar. Tünelin sonuna ulaş.' 
-                      : 'Test your reflexes. Questions accelerate. Mistakes steal time, accuracy builds combos. Reach the end of the tunnel.'}
-                 </p>
-
-                 {!demoMode && (
-                     <button 
-                     onClick={startGame}
-                     className="relative group/btn w-full py-6 bg-white text-black font-black text-2xl uppercase tracking-[0.2em] overflow-hidden transition-all hover:scale-105"
+                        className="text-yellow-500 font-mono text-xs font-bold mt-1 flex items-center gap-1"
                      >
-                        <span className="relative z-10 flex items-center justify-center gap-2">
-                            {isTr ? 'BAŞLAT' : 'IGNITE'} <ChevronsRight className="w-6 h-6" />
-                        </span>
-                        <div className="absolute inset-0 bg-blue-500 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 mix-blend-overlay"></div>
-                     </button>
+                         <Flame className="w-3 h-3" /> {combo}x COMBO
+                     </motion.div>
                  )}
-                 {demoMode && (
-                     <div className="text-white/50 text-xs font-mono uppercase tracking-widest animate-pulse">
-                         AUTO-PILOT ENGAGED
-                     </div>
-                 )}
-             </motion.div>
-         )}
+             </div>
 
-         {/* COUNTDOWN */}
-         {gameState === 'countdown' && (
-             <Countdown />
-         )}
+             {/* Exit */}
+             <button onClick={onExit} className="pointer-events-auto p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors border border-white/5">
+                 <X className="w-5 h-5" />
+             </button>
+          </div>
+          
+          {/* Center Timer (Floating) */}
+          {gameState === 'running' && (
+              <div className="absolute top-8 left-1/2 -translate-x-1/2">
+                  <div className={`px-4 py-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-md font-mono text-xl ${timeLeft < 10 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                      {timeLeft}s
+                  </div>
+              </div>
+          )}
+      </div>
 
-         {/* GAME RUNNING */}
-         {gameState === 'running' && (
+      {/* 3. GAMEPLAY LAYER */}
+      <div className="relative z-10 w-full max-w-4xl px-6 flex flex-col items-center">
+          
+          {/* IDLE SCREEN */}
+          {gameState === 'idle' && (
+              <motion.div 
+                 initial={{ opacity: 0, scale: 0.95 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 className="text-center"
+              >
+                  <div className="w-24 h-24 mx-auto mb-8 bg-black border border-white/20 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)]">
+                      <Zap className="w-10 h-10 text-white" />
+                  </div>
+                  <h1 className="text-6xl md:text-8xl font-serif text-white mb-6 tracking-tighter">
+                      Velocity
+                  </h1>
+                  <p className="text-gray-400 font-light text-lg mb-12 max-w-md mx-auto leading-relaxed">
+                      {isTr 
+                       ? "Hız ve hassasiyet testi. Yanlış cevaplar zamanı tüketir, doğrular akışı hızlandırır." 
+                       : "Test of speed and precision. Mistakes consume time, accuracy accelerates flow."}
+                  </p>
+                  <button 
+                     onClick={startGame}
+                     className="px-10 py-5 bg-white text-black font-bold uppercase tracking-[0.2em] hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+                  >
+                      {isTr ? 'BAŞLAT' : 'INITIALIZE'}
+                  </button>
+              </motion.div>
+          )}
+
+          {/* COUNTDOWN */}
+          {gameState === 'countdown' && <Countdown />}
+
+          {/* QUESTION CARD */}
+          {gameState === 'running' && (
+              <motion.div 
+                 key={currentQ}
+                 initial={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }}
+                 animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                 exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
+                 transition={{ duration: 0.3 }}
+                 className="w-full text-center"
+              >
+                  {/* Category Tag */}
+                  <div className="mb-6 inline-block px-3 py-1 border border-white/20 rounded-full text-[10px] font-mono text-white/60 uppercase tracking-widest">
+                      DATA BLOCK: {activeQuestions[currentQ % activeQuestions.length].cat}
+                  </div>
+
+                  {/* Question Text */}
+                  <h2 className="text-4xl md:text-6xl font-serif text-white leading-tight mb-16 drop-shadow-2xl">
+                      {activeQuestions[currentQ % activeQuestions.length].q}
+                  </h2>
+
+                  {/* Visual Controls (Desktop/Mobile) */}
+                  <div className="flex justify-center gap-8 w-full max-w-2xl mx-auto">
+                      <button 
+                         onClick={() => handleAnswer(false)}
+                         className="flex-1 h-32 rounded-2xl border border-white/10 bg-white/5 hover:bg-red-500/10 hover:border-red-500/50 transition-all group relative overflow-hidden"
+                      >
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <X className="w-8 h-8 text-white/50 group-hover:text-red-500 mb-2 transition-colors" />
+                              <span className="font-bold text-white/50 group-hover:text-white uppercase tracking-widest text-sm">{isTr ? 'YANLIŞ' : 'FALSE'}</span>
+                          </div>
+                          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-white/20 font-mono hidden md:block">
+                              ← LEFT
+                          </div>
+                      </button>
+
+                      <button 
+                         onClick={() => handleAnswer(true)}
+                         className="flex-1 h-32 rounded-2xl border border-white/10 bg-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all group relative overflow-hidden"
+                      >
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <Check className="w-8 h-8 text-white/50 group-hover:text-emerald-500 mb-2 transition-colors" />
+                              <span className="font-bold text-white/50 group-hover:text-white uppercase tracking-widest text-sm">{isTr ? 'DOĞRU' : 'TRUE'}</span>
+                          </div>
+                          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-white/20 font-mono hidden md:block">
+                              RIGHT →
+                          </div>
+                      </button>
+                  </div>
+              </motion.div>
+          )}
+
+          {/* GAME OVER REPORT */}
+          {gameState === 'gameover' && (
              <motion.div 
-               key={currentQ} // Force re-render animation on new question
-               initial={{ scale: 0.9, opacity: 0, y: 50 }}
-               animate={{ scale: 1, opacity: 1, y: 0 }}
-               transition={{ type: "spring", bounce: 0.5 }}
-               className="w-full text-center"
-             >
-                 {/* Question Card */}
-                 <div className="relative bg-black/80 border border-white/20 py-16 px-8 mb-16 backdrop-blur-xl shadow-2xl rounded-sm max-w-4xl mx-auto">
-                    
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black border border-white/20 px-4 py-1 text-xs font-bold font-mono text-white/50 uppercase tracking-widest">
-                        Data Packet #{currentQ + 1}
-                    </div>
-
-                    <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight font-serif drop-shadow-xl">
-                       {activeQuestions[currentQ % activeQuestions.length].q}
-                    </h2>
-                 </div>
-
-                 {/* Controls */}
-                 <div className="flex gap-8 justify-center items-center">
-                    {/* FALSE BUTTON */}
-                    <button 
-                       onClick={() => handleAnswer(false)}
-                       disabled={demoMode}
-                       className="group relative w-64 h-40 perspective-500 transition-transform hover:scale-105 active:scale-95 outline-none"
-                    >
-                       <div className="absolute inset-0 bg-gradient-to-br from-red-900/80 to-black border border-red-900/50 skew-x-[-6deg] group-hover:border-red-500 transition-colors"></div>
-                       <span className="relative z-10 text-white text-4xl font-black uppercase tracking-widest flex flex-col items-center">
-                          <X className="w-8 h-8 mb-2 text-red-500" />
-                          {isTr ? 'YANLIŞ' : 'FALSE'}
-                       </span>
-                       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-white/30 font-mono flex items-center gap-1">
-                           <Keyboard className="w-3 h-3"/> <ArrowLeft className="w-3 h-3"/>
-                       </div>
-                    </button>
-
-                    {/* TRUE BUTTON */}
-                    <button 
-                       onClick={() => handleAnswer(true)}
-                       disabled={demoMode}
-                       className="group relative w-64 h-40 perspective-500 transition-transform hover:scale-105 active:scale-95 outline-none"
-                    >
-                       <div className="absolute inset-0 bg-gradient-to-bl from-emerald-900/80 to-black border border-emerald-900/50 skew-x-[6deg] group-hover:border-emerald-500 transition-colors"></div>
-                       <span className="relative z-10 text-white text-4xl font-black uppercase tracking-widest flex flex-col items-center">
-                          <Check className="w-8 h-8 mb-2 text-emerald-500" />
-                          {isTr ? 'DOĞRU' : 'TRUE'}
-                       </span>
-                       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-white/30 font-mono flex items-center gap-1">
-                           <Keyboard className="w-3 h-3"/> <ArrowRight className="w-3 h-3"/>
-                       </div>
-                    </button>
-                 </div>
-             </motion.div>
-         )}
-
-         {/* GAME OVER / ANALYTICS REPORT */}
-         {gameState === 'gameover' && (
-             <motion.div 
-               initial={{ opacity: 0, y: 50 }}
+               initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
-               className="w-full max-w-5xl bg-black/90 border border-white/20 backdrop-blur-xl p-8 md:p-12 relative overflow-hidden flex flex-col md:flex-row gap-12"
+               className="w-full max-w-2xl bg-black border border-white/10 p-8 md:p-12 relative shadow-2xl"
              >
-                 {/* LEFT: SUMMARY */}
-                 <div className="flex-1 space-y-8">
-                     <div>
-                        <div className="flex items-center gap-2 text-yellow-500 mb-2">
-                            <Trophy className="w-5 h-5" />
-                            <span className="text-xs font-bold uppercase tracking-widest">Mission Complete</span>
-                        </div>
-                        <h2 className="font-serif text-6xl text-white mb-2 tracking-tighter">{getRank()}</h2>
-                        <div className="flex items-center gap-4 text-sm">
-                            <p className="text-gray-400">
-                                {isTr ? 'Toplam Skor' : 'Total Score'}: <span className="text-white font-bold">{score.toLocaleString()}</span>
-                            </p>
-                            {score >= highScore && highScore > 0 && (
-                                <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] uppercase font-bold border border-yellow-500/50 rounded">New Record!</span>
-                            )}
-                        </div>
-                     </div>
+                 <div className="text-center mb-10">
+                     <p className="text-xs font-mono text-gray-500 uppercase tracking-widest mb-2">Simulation Complete</p>
+                     <h2 className="text-5xl font-serif text-white mb-2">{getRank()}</h2>
+                     <div className="text-2xl font-mono text-white/80">{score.toLocaleString()} <span className="text-sm text-gray-500">PTS</span></div>
+                 </div>
 
-                     {/* Stats Grid */}
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/5 p-4 border border-white/10">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{isTr ? 'Cevaplar' : 'Answers'}</div>
-                            <div className="text-2xl font-bold text-white">{currentQ}</div>
-                        </div>
-                        <div className="bg-white/5 p-4 border border-white/10">
-                            <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">{isTr ? 'Doğruluk' : 'Accuracy'}</div>
-                            <div className="text-2xl font-bold text-white">
-                                {currentQ > 0 ? Math.round(((currentQ - mistakes.length) / currentQ) * 100) : 0}%
-                            </div>
-                        </div>
+                 <div className="grid grid-cols-2 gap-4 mb-8">
+                     <div className="bg-white/5 p-4 text-center border border-white/10 rounded">
+                         <div className="text-xs text-gray-500 uppercase mb-1">Accuracy</div>
+                         <div className="text-xl text-white font-bold">{currentQ > 0 ? Math.round(((currentQ - mistakes.length) / currentQ) * 100) : 0}%</div>
                      </div>
+                     <div className="bg-white/5 p-4 text-center border border-white/10 rounded">
+                         <div className="text-xs text-gray-500 uppercase mb-1">Speed</div>
+                         <div className="text-xl text-white font-bold">{(currentQ / 60).toFixed(1)} <span className="text-xs font-normal">Q/s</span></div>
+                     </div>
+                 </div>
 
-                     {/* Category Matrix */}
-                     <div>
-                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                             <BarChart3 className="w-3 h-3" /> {isTr ? 'Konu Analizi' : 'Subject Matrix'}
+                 {mistakes.length > 0 && (
+                     <div className="border-t border-white/10 pt-6">
+                         <h4 className="text-xs text-red-400 font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+                             <Activity className="w-3 h-3" /> Critical Errors Detected
                          </h4>
-                         <div className="space-y-2">
-                             {Object.entries(catStats).map(([cat, stat]: [string, { total: number, correct: number }]) => (
-                                 <div key={cat} className="flex items-center gap-4 text-xs">
-                                     <span className="w-8 font-mono text-gray-500">{cat}</span>
-                                     <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                                         <div 
-                                            className="h-full bg-blue-500" 
-                                            style={{ width: `${(stat.correct / stat.total) * 100}%` }}
-                                         />
-                                     </div>
-                                     <span className="text-white w-8 text-right">{Math.round((stat.correct / stat.total) * 100)}%</span>
+                         <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                             {mistakes.map((m, i) => (
+                                 <div key={i} className="text-sm text-gray-400">
+                                     <div className="text-white mb-1">"{m.question}"</div>
+                                     <div className="text-xs opacity-70 border-l-2 border-red-500 pl-2">{m.rationale}</div>
                                  </div>
                              ))}
                          </div>
                      </div>
-                     
-                     <div className="flex gap-4">
-                        <button 
-                            onClick={startGame}
-                            className="flex-1 py-4 bg-white text-black font-bold uppercase tracking-[0.2em] hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
-                        >
-                            <RotateCcw className="w-4 h-4" /> {isTr ? 'TEKRAR' : 'RESTART'}
-                        </button>
-                        <button 
-                            onClick={onExit}
-                            className="flex-1 py-4 border border-white/20 text-white font-bold uppercase tracking-[0.2em] hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                        >
-                            <LogOut className="w-4 h-4" /> {isTr ? 'ÇIKIŞ' : 'EXIT'}
-                        </button>
-                     </div>
+                 )}
+
+                 <div className="mt-8 flex gap-4">
+                     <button onClick={startGame} className="flex-1 py-4 bg-white text-black font-bold uppercase tracking-widest hover:bg-gray-200">{isTr ? 'TEKRAR' : 'RETRY'}</button>
+                     <button onClick={onExit} className="flex-1 py-4 border border-white/20 text-white font-bold uppercase tracking-widest hover:bg-white/10">{isTr ? 'ÇIKIŞ' : 'EXIT'}</button>
                  </div>
-
-                 {/* RIGHT: ERROR LOG (Neural Glitches) */}
-                 <div className="flex-1 border-l border-white/10 pl-0 md:pl-12 flex flex-col h-[500px]">
-                     <h3 className="text-lg font-serif text-white mb-6 flex items-center gap-2">
-                         <Activity className="w-5 h-5 text-red-500" />
-                         {isTr ? 'Hata Günlüğü' : 'Neural Glitches'}
-                         <span className="text-xs font-mono text-gray-500 ml-auto">{mistakes.length} ERRORS</span>
-                     </h3>
-
-                     <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
-                         {mistakes.length === 0 ? (
-                             <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 opacity-50">
-                                 <TrendingUp className="w-12 h-12 mb-2" />
-                                 <p className="text-xs uppercase tracking-widest">{isTr ? 'Mükemmel Performans' : 'Perfect Run'}</p>
-                             </div>
-                         ) : (
-                             mistakes.map((mistake, i) => (
-                                 <div key={i} className="bg-red-950/20 border border-red-900/30 p-4 rounded text-left">
-                                     <div className="text-white font-medium mb-2 text-sm">{mistake.question}</div>
-                                     <div className="flex justify-between items-center text-xs mb-2">
-                                         <span className="text-red-400">Sen: {mistake.userAnswer ? (isTr?'DOĞRU':'TRUE') : (isTr?'YANLIŞ':'FALSE')}</span>
-                                         <span className="text-green-400">Cevap: {mistake.correctAnswer ? (isTr?'DOĞRU':'TRUE') : (isTr?'YANLIŞ':'FALSE')}</span>
-                                     </div>
-                                     <p className="text-gray-400 text-xs italic border-t border-white/5 pt-2">
-                                         "{mistake.rationale}"
-                                     </p>
-                                 </div>
-                             ))
-                         )}
-                     </div>
-                 </div>
-
              </motion.div>
-         )}
+          )}
 
       </div>
-
-      {/* --- GLOBAL STYLES FOR ANIMATION --- */}
-      <style>{`
-        @keyframes tunnelFlow {
-            0% { background-position: 0 0; }
-            100% { background-position: 0 200px; }
-        }
-        @keyframes rain {
-            0% { transform: translateY(-200px); opacity: 0; }
-            20% { opacity: 1; }
-            100% { transform: translateY(120vh); opacity: 0; }
-        }
-      `}</style>
-
     </div>
   );
 }
 
 function Countdown() {
   const [count, setCount] = useState(3);
-  
   useEffect(() => {
     if (count > 0) {
       const timer = setTimeout(() => setCount(c => c - 1), 1000);
@@ -641,12 +415,12 @@ function Countdown() {
   return (
     <motion.div 
       key={count}
-      initial={{ scale: 3, opacity: 0, filter: "blur(10px)" }}
+      initial={{ scale: 2, opacity: 0, filter: "blur(20px)" }}
       animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-      exit={{ scale: 0, opacity: 0 }}
-      className="text-[12rem] font-black text-white italic tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]"
+      exit={{ scale: 0.5, opacity: 0, filter: "blur(10px)" }}
+      className="text-9xl font-serif text-white font-bold"
     >
-      {count > 0 ? count : "GO!"}
+      {count > 0 ? count : "GO"}
     </motion.div>
   );
 }
