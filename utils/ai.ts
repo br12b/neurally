@@ -1,25 +1,56 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Question } from "../types";
+import { obfuscate, deobfuscate } from "./security";
 
-// --- API KEY DETECTION ---
+// --- SECURE KEY MANAGEMENT ---
+// We hold the key in a closure variable, not on the window object.
+let secureStorage: string | null = null;
+
+const initializeSecurity = () => {
+    if (secureStorage) return; // Already initialized
+
+    let rawKey = "";
+    try {
+        // @ts-ignore
+        if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+            // @ts-ignore
+            rawKey = import.meta.env.VITE_API_KEY;
+        } else if (typeof process !== 'undefined' && process.env) {
+            if (process.env.NEXT_PUBLIC_API_KEY) rawKey = process.env.NEXT_PUBLIC_API_KEY;
+            else if (process.env.REACT_APP_API_KEY) rawKey = process.env.REACT_APP_API_KEY;
+            else if (process.env.API_KEY) rawKey = process.env.API_KEY;
+        }
+    } catch (e) {}
+
+    if (rawKey) {
+        // 1. Obfuscate and store in closure
+        secureStorage = obfuscate(rawKey);
+        
+        // 2. WIPE TRACES: Attempt to clear from process.env if possible to hide from console
+        if (typeof process !== 'undefined' && process.env) {
+            // We can't actually delete process.env in strict mode usually, but we can try to obscure it
+            try {
+                // @ts-ignore
+                delete process.env.API_KEY;
+                // @ts-ignore
+                delete process.env.REACT_APP_API_KEY;
+            } catch(e) {}
+        }
+    }
+};
+
+// Call immediately
+initializeSecurity();
+
 export const getApiKey = (): string => {
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-      // @ts-ignore
-      return import.meta.env.VITE_API_KEY;
+    if (!secureStorage) {
+        // Try one last time if init failed
+        initializeSecurity();
+        if (!secureStorage) return "";
     }
-  } catch (e) {}
-
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      if (process.env.NEXT_PUBLIC_API_KEY) return process.env.NEXT_PUBLIC_API_KEY;
-      if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
-      if (process.env.API_KEY) return process.env.API_KEY;
-    }
-  } catch (e) {}
-
-  return "";
+    // Deobfuscate only at the moment of need
+    return deobfuscate(secureStorage);
 };
 
 // --- OPENROUTER ADAPTER ---
@@ -60,7 +91,6 @@ class OpenRouterAdapter {
        userContent = JSON.stringify(contents);
     }
 
-    // UPDATED PROMPT: ACADEMIC & UNIVERSAL
     let systemMessage = "You are a high-level academic tutor and cognitive engine.";
     if (userContent.includes("Active Recall") || userContent.includes("Soru")) {
         systemMessage = "You are an expert professor capable of creating university-level assessment material. IMPORTANT: Detect the language of the input text and generate the JSON response IN THE SAME LANGUAGE. Focus on critical thinking, deep analysis, and conceptual understanding. Output strict JSON only.";
@@ -134,7 +164,7 @@ class GroqAdapter {
 
   async generateContent(params: any) {
     const { contents, config } = params;
-    let userContent = ""; // (Same logic as OpenRouter...)
+    let userContent = ""; 
     
     if (typeof contents === 'string') {
         userContent = contents;
@@ -179,9 +209,16 @@ class GroqAdapter {
 // --- FACTORY FUNCTION ---
 export const createAIClient = () => {
   const apiKey = getApiKey();
-  if (!apiKey) return new GoogleGenAI({ apiKey: "dummy" });
+  
+  // Security Check: If no key, fail gracefully or use dummy to prevent crash
+  if (!apiKey) {
+      console.warn("Neural Guard: No valid API Key found in secure storage.");
+      return new GoogleGenAI({ apiKey: "dummy_for_ui_stability" });
+  }
+
   if (apiKey.startsWith("sk-or-")) return new OpenRouterAdapter(apiKey);
   if (apiKey.startsWith("gsk_")) return new GroqAdapter(apiKey);
+  
   return new GoogleGenAI({ apiKey });
 };
 

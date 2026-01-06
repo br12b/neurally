@@ -1,6 +1,6 @@
 
-// --- NEURAL GUARD PROTOCOL ---
-// Client-side rate limiting and sanitization utilities.
+// --- NEURAL GUARD PROTOCOL v2.0 ---
+// Advanced Client-side security, obfuscation, and rate limiting.
 
 interface RateLimitConfig {
     maxRequests: number;
@@ -11,7 +11,32 @@ const LIMITS: Record<string, RateLimitConfig> = {
     'generate_quiz': { maxRequests: 5, windowMs: 24 * 60 * 60 * 1000 }, // 5 per day
     'generate_podcast': { maxRequests: 2, windowMs: 24 * 60 * 60 * 1000 }, // 2 per day
     'generate_path': { maxRequests: 3, windowMs: 24 * 60 * 60 * 1000 }, // 3 per day
-    'ai_chat': { maxRequests: 20, windowMs: 60 * 60 * 1000 } // 20 per hour
+    'ai_chat': { maxRequests: 50, windowMs: 60 * 60 * 1000 } // 50 per hour
+};
+
+// --- KEY OBFUSCATION UTILITIES ---
+// Simple XOR Cipher to hide key in memory from casual string searches
+const XOR_KEY = "NEURAL_SYSTEM_CORE";
+
+export const obfuscate = (text: string): string => {
+    let result = "";
+    for (let i = 0; i < text.length; i++) {
+        result += String.fromCharCode(text.charCodeAt(i) ^ XOR_KEY.charCodeAt(i % XOR_KEY.length));
+    }
+    return btoa(result); // Return Base64
+};
+
+export const deobfuscate = (encoded: string): string => {
+    try {
+        const text = atob(encoded);
+        let result = "";
+        for (let i = 0; i < text.length; i++) {
+            result += String.fromCharCode(text.charCodeAt(i) ^ XOR_KEY.charCodeAt(i % XOR_KEY.length));
+        }
+        return result;
+    } catch (e) {
+        return "";
+    }
 };
 
 export const checkRateLimit = (actionType: string): { allowed: boolean; waitTime?: string } => {
@@ -43,8 +68,8 @@ export const checkRateLimit = (actionType: string): { allowed: boolean; waitTime
         return { allowed: true };
 
     } catch (e) {
-        // If storage fails, default to allow but log error (fail open)
-        console.error("Rate limit check failed", e);
+        // Fail Safe: If storage fails, default to allow but log error
+        console.error("Neural Guard: Rate limit check failed", e);
         return { allowed: true };
     }
 };

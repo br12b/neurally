@@ -131,6 +131,33 @@ function App() {
     setFlashcards(prev => [card, ...prev]);
   };
 
+  // --- GAMIFICATION HANDLER ---
+  const handleAddXP = (amount: number) => {
+      if (!user || !user.stats) return;
+      
+      const newXP = user.stats.currentXP + amount;
+      let newLevel = user.stats.level;
+      let nextXP = user.stats.nextLevelXP;
+
+      // Simple Level Up Logic
+      if (newXP >= nextXP) {
+          newLevel += 1;
+          nextXP = Math.floor(nextXP * 1.5);
+          // Optional: Trigger Level Up Modal here
+      }
+
+      const updatedUser = {
+          ...user,
+          stats: {
+              ...user.stats,
+              currentXP: newXP,
+              level: newLevel,
+              nextLevelXP: nextXP
+          }
+      };
+      setUser(updatedUser);
+  };
+
   const handleLogin = (userData: User) => {
     // Add stats if missing
     if(!userData.stats) userData.stats = generateDefaultStats();
@@ -231,7 +258,10 @@ function App() {
                 <EduClassroom language={language} user={user} />
               )}
               {activeView === 'language' && (
-                <LanguagePath language={language} />
+                <LanguagePath 
+                    language={language} 
+                    onAddXP={handleAddXP} // PASSING XP HANDLER
+                />
               )}
               {activeView === 'pomodoro' && <Pomodoro />}
               {activeView === 'notes' && <SmartNotes user={user} />}

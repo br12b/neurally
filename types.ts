@@ -85,24 +85,24 @@ export interface PodcastEpisode {
     script: { speaker: 'Host' | 'Expert', text: string }[];
 }
 
-// --- EDU MODULE TYPES ---
-export interface EduAssignment {
+// --- QUIZ BATTLE TYPES (NEW) ---
+export interface BattlePlayer {
     id: string;
-    title: string;
-    type: 'quiz' | 'resource';
-    content: string; // Description or JSON string of questions
-    dueDate?: string;
-    timestamp: number;
+    username: string;
+    score: number;
+    avatar: string;
+    isHost: boolean;
 }
 
-export interface Classroom {
-    id: string;
-    name: string;
-    code: string; // 6-digit join code
-    instructorId: string;
-    instructorName: string;
-    studentCount: number;
-    assignments: EduAssignment[];
+export interface QuizRoom {
+    code: string; // 4 digit code
+    hostId: string;
+    topic: string;
+    status: 'waiting' | 'active' | 'finished';
+    currentQuestionIndex: number;
+    questions: Question[];
+    players: BattlePlayer[];
+    createdAt: number;
 }
 
 // --- LANGUAGE PATH TYPES ---

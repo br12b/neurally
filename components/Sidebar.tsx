@@ -16,7 +16,7 @@ import {
   HelpCircle, 
   LogOut,
   ChevronRight,
-  School,
+  Swords, // Changed from School
   Languages
 } from 'lucide-react';
 import { AppView, User, Language } from '../types';
@@ -118,7 +118,7 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
     { id: 'notes', icon: FileText, label: t.notes },
     { id: 'keypoints', icon: Sparkles, label: t.keypoints },
     { id: 'schedule', icon: CalendarRange, label: t.schedule },
-    { id: 'edu', icon: School, label: t.edu },
+    { id: 'edu', icon: Swords, label: "Quiz Arena" }, // Updated Label & Icon
     { id: 'pomodoro', icon: Timer, label: t.pomodoro },
     { id: 'speedrun', icon: Zap, label: t.speedrun },
     { id: 'report', icon: LineChart, label: t.report },
