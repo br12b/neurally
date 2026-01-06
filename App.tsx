@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -12,21 +13,11 @@ import Schedule from './components/Schedule';
 import KeyPoints from './components/KeyPoints'; 
 import SpeedRun from './components/SpeedRun';
 import NeuroMap from './components/NeuroMap';
-import TheConstruct from './components/TheConstruct'; 
 import BackgroundFlow from './components/BackgroundFlow'; 
-import AdminPanel from './components/AdminPanel';
 import { AppView, Question, User, Language, Flashcard } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './utils/firebase';
-
-// --- SECURITY CONFIGURATION ---
-// Kendi e-posta adresini buraya ekle. Sadece bu listedekiler Admin panelini görebilir.
-const ADMIN_EMAILS = [
-    "emrebe12b@gmail.com",
-    "admin@neurally.co",
-    "demo@neurally.co"
-];
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -43,24 +34,18 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // SECURITY CHECK: Is this user in the allowed admin list?
-        const isAdmin = firebaseUser.email ? ADMIN_EMAILS.includes(firebaseUser.email) : false;
-
         const appUser: User = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || "Anonymous Scholar",
             email: firebaseUser.email || "No Email",
             avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'U'}&background=000000&color=fff`,
-            tier: 'Scholar',
-            isAdmin: isAdmin
+            tier: 'Scholar'
         };
         setUser(appUser);
       } else {
         const storedUser = localStorage.getItem('neurally_user');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
-          // Re-verify admin status on load just in case
-          parsedUser.isAdmin = parsedUser.email ? ADMIN_EMAILS.includes(parsedUser.email) : false;
           setUser(parsedUser);
         } else {
           setUser(null);
@@ -106,9 +91,6 @@ function App() {
   };
 
   const handleLogin = (userData: User) => {
-    // Check admin status for manual login (Demo mode)
-    userData.isAdmin = userData.email ? ADMIN_EMAILS.includes(userData.email) : false;
-    
     setUser(userData);
     localStorage.setItem('neurally_user', JSON.stringify(userData));
   };
@@ -123,13 +105,6 @@ function App() {
     localStorage.removeItem('neurally_user');
     setActiveView('dashboard');
   };
-  
-  // ADMIN: Upgrade User Function
-  const handleUpdateUserTier = (tier: 'Free' | 'Scholar' | 'Fellow') => {
-      if (user) {
-          setUser({ ...user, tier });
-      }
-  };
 
   if (isLoading) return null;
 
@@ -138,7 +113,7 @@ function App() {
   }
 
   // Views that need full screen or dark mode specifically
-  const isImmersiveView = activeView === 'speedrun' || activeView === 'construct' || activeView === 'admin';
+  const isImmersiveView = activeView === 'speedrun';
 
   return (
     <div className="flex min-h-screen text-ink-900 selection:bg-black selection:text-white overflow-hidden font-sans bg-transparent relative">
@@ -179,9 +154,6 @@ function App() {
               {activeView === 'neurallist' && (
                 <NeuroMap language={language} user={user} />
               )}
-              {activeView === 'construct' && (
-                <TheConstruct language={language} user={user} />
-              )}
               {activeView === 'quiz' && (
                 <NeurallyQuiz 
                   key={questions[0]?.id || 'quiz'} 
@@ -213,19 +185,6 @@ function App() {
               {activeView === 'notes' && <SmartNotes user={user} />}
               {activeView === 'report' && <Report user={user} language={language} />}
               {activeView === 'about' && <About language={language} />}
-              
-              {/* ADMIN PANEL ROUTE - Protected */}
-              {activeView === 'admin' && user.isAdmin && (
-                  <AdminPanel user={user} updateUserTier={handleUpdateUserTier} />
-              )}
-              {/* Fallback if non-admin tries to access */}
-              {activeView === 'admin' && !user.isAdmin && (
-                  <Dashboard 
-                    user={user} 
-                    onQuestionsGenerated={handleQuestionsGenerated}
-                    language={language}
-                  />
-              )}
             </motion.div>
           </AnimatePresence>
         </div>

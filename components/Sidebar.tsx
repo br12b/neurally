@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, Zap, BookOpen, Layers, LogOut, PieChart, Info, Calendar, Lightbulb, Activity, Rocket, LayoutList, Network, ShieldCheck } from 'lucide-react';
@@ -18,7 +19,6 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
 
   const menuItems = [
     { id: 'dashboard', icon: Activity, label: t.dashboard }, 
-    { id: 'construct', icon: Network, label: t.construct }, 
     { id: 'neurallist', icon: LayoutList, label: t.neurallist },
     { id: 'keypoints', icon: Lightbulb, label: t.keypoints }, 
     { id: 'quiz', icon: Brain, label: t.quiz },
@@ -74,24 +74,6 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
         })}
 
         <div className="flex-1"></div>
-
-        {/* ADMIN BUTTON - RESTRICTED */}
-        {user.isAdmin && (
-            <div className="pt-4 mt-2 border-t border-gray-100 pb-2">
-                <button
-                onClick={() => onChangeView('admin')}
-                className={`
-                    relative group flex items-center w-full px-4 py-3.5 rounded-lg transition-all duration-200 z-10
-                    ${activeView === 'admin' ? 'bg-black text-white' : 'text-gray-500 hover:bg-red-50 hover:text-red-600'}
-                `}
-                >
-                <ShieldCheck className={`w-4 h-4 relative z-10 ${activeView === 'admin' ? 'text-white' : 'text-gray-400 group-hover:text-red-600'}`} strokeWidth={1.5} />
-                <span className="ml-3 font-mono text-[10px] uppercase font-bold tracking-widest relative z-10">
-                    Overwatch
-                </span>
-                </button>
-            </div>
-        )}
       </nav>
 
       {/* FOOTER: MINIMALIST PROFILE */}
