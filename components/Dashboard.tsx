@@ -21,8 +21,8 @@ const BadgeIcon = ({ icon, locked }: { icon: string, locked: boolean }) => {
     const LucideIcon = IconMap[icon] || Star;
     
     return (
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-all ${locked ? 'bg-gray-50 border-gray-200 text-gray-300' : 'bg-black text-white border-black shadow-lg'}`}>
-            {locked ? <Lock className="w-5 h-5" /> : <LucideIcon className="w-6 h-6" />}
+        <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center border transition-all ${locked ? 'bg-gray-50 border-gray-200 text-gray-300' : 'bg-black text-white border-black shadow-lg'}`}>
+            {locked ? <Lock className="w-4 h-4 md:w-5 md:h-5" /> : <LucideIcon className="w-5 h-5 md:w-6 md:h-6" />}
         </div>
     );
 };
@@ -209,7 +209,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="p-8 lg:p-12 max-w-[1920px] mx-auto min-h-screen relative"
+      className="p-4 md:p-8 lg:p-12 max-w-[1920px] mx-auto min-h-screen relative"
     >
       
       {/* 1. TOP MARQUEE */}
@@ -222,25 +222,25 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       </motion.div>
 
       {/* 2. GAMIFIED HEADER SECTION */}
-      <motion.div variants={itemVariants} className="mb-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
+      <motion.div variants={itemVariants} className="mb-12 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
           
           {/* USER IDENTITY CARD */}
           <div className="lg:col-span-8 flex flex-col justify-end">
-              <div className="flex items-end gap-6 mb-6">
+              <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 mb-6">
                   <div className="relative">
-                      <div className="w-24 h-24 rounded-2xl bg-black overflow-hidden border-2 border-white shadow-xl">
+                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-black overflow-hidden border-2 border-white shadow-xl">
                           <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover opacity-90" />
                       </div>
-                      <div className="absolute -bottom-3 -right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm font-serif font-bold text-lg">
+                      <div className="absolute -bottom-3 -right-3 w-8 h-8 md:w-10 md:h-10 bg-white rounded-full flex items-center justify-center border border-gray-100 shadow-sm font-serif font-bold text-sm md:text-lg">
                           {stats.level}
                       </div>
                   </div>
                   <div>
-                      <div className="flex items-center gap-3 mb-1">
-                          <h1 className="font-serif text-5xl text-black tracking-tighter">{user.name}</h1>
-                          {user.tier === 'Fellow' && <Crown className="w-6 h-6 text-yellow-500 fill-yellow-500" />}
+                      <div className="flex items-center gap-2 md:gap-3 mb-1">
+                          <h1 className="font-serif text-3xl md:text-5xl text-black tracking-tighter">{user.name}</h1>
+                          {user.tier === 'Fellow' && <Crown className="w-5 h-5 md:w-6 md:h-6 text-yellow-500 fill-yellow-500" />}
                       </div>
-                      <p className="text-gray-400 font-mono text-xs uppercase tracking-widest flex items-center gap-2">
+                      <p className="text-gray-400 font-mono text-[10px] md:text-xs uppercase tracking-widest flex items-center gap-2">
                           <Medal className="w-3 h-3 text-black" /> {stats.rankTitle}
                       </p>
                   </div>
@@ -265,30 +265,30 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
 
           {/* QUICK STATS & STREAK */}
           <div className="lg:col-span-4 flex gap-4 items-end">
-              <div className="flex-1 bg-white border border-gray-200 p-6 rounded-2xl shadow-sm group hover:border-orange-200 transition-colors">
+              <div className="flex-1 bg-white border border-gray-200 p-4 md:p-6 rounded-2xl shadow-sm group hover:border-orange-200 transition-colors">
                   <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Flame className="w-5 h-5" /></div>
-                      <span className="text-[10px] font-bold text-gray-300 uppercase">Day Streak</span>
+                      <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Flame className="w-4 h-4 md:w-5 md:h-5" /></div>
+                      <span className="text-[9px] md:text-[10px] font-bold text-gray-300 uppercase">Day Streak</span>
                   </div>
-                  <div className="text-4xl font-serif text-black">{stats.streakDays}</div>
+                  <div className="text-3xl md:text-4xl font-serif text-black">{stats.streakDays}</div>
                   <div className="text-[10px] text-gray-400 mt-1 font-mono">Keep the fire burning</div>
               </div>
 
-              <div className="flex-1 bg-white border border-gray-200 p-6 rounded-2xl shadow-sm group hover:border-purple-200 transition-colors">
+              <div className="flex-1 bg-white border border-gray-200 p-4 md:p-6 rounded-2xl shadow-sm group hover:border-purple-200 transition-colors">
                   <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><Activity className="w-5 h-5" /></div>
-                      <span className="text-[10px] font-bold text-gray-300 uppercase">Focus Time</span>
+                      <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><Activity className="w-4 h-4 md:w-5 md:h-5" /></div>
+                      <span className="text-[9px] md:text-[10px] font-bold text-gray-300 uppercase">Focus Time</span>
                   </div>
-                  <div className="text-4xl font-serif text-black">{Math.floor(stats.totalFocusMinutes / 60)}h</div>
+                  <div className="text-3xl md:text-4xl font-serif text-black">{Math.floor(stats.totalFocusMinutes / 60)}h</div>
                   <div className="text-[10px] text-gray-400 mt-1 font-mono">{stats.totalFocusMinutes % 60}m this week</div>
               </div>
           </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 pb-12">
         
         {/* LEFT COLUMN: ACTION & QUESTS */}
-        <div className="lg:col-span-8 space-y-12">
+        <div className="lg:col-span-8 space-y-8 md:space-y-12">
           
           {/* AI INPUT SECTION */}
           <motion.div variants={itemVariants} className="relative group">
@@ -323,7 +323,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                 onDrop={handleDrop}
              >
                 <textarea 
-                  className={`w-full h-[350px] bg-white border p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'} ${errorState ? 'border-red-200' : ''}`}
+                  className={`w-full h-[250px] md:h-[350px] bg-white border p-6 md:p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-lg md:text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'} ${errorState ? 'border-red-200' : ''}`}
                   placeholder={t.placeholder}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -353,13 +353,13 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
              </div>
              
              {/* Action Bar */}
-             <div className="flex justify-between items-center mt-6">
-                <div className="flex items-center gap-4">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mt-6 gap-4">
+                <div className="flex items-center gap-4 w-full md:w-auto">
                     <button 
                         onClick={() => fileInputRef.current?.click()}
-                        className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
+                        className="group flex-1 md:flex-none flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors border border-gray-100 p-3 rounded-lg md:border-none md:p-0"
                     >
-                        <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">
+                        <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm bg-white">
                             <Plus className="w-3 h-3" />
                         </div>
                         <span>{t.upload}</span>
@@ -368,9 +368,9 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
 
                     <button 
                         onClick={() => pdfInputRef.current?.click()}
-                        className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
+                        className="group flex-1 md:flex-none flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors border border-gray-100 p-3 rounded-lg md:border-none md:p-0"
                     >
-                        <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm">
+                        <div className="w-6 h-6 border border-gray-200 group-hover:border-black flex items-center justify-center transition-colors rounded-sm bg-white">
                             <FileUp className="w-3 h-3" />
                         </div>
                         <span>PDF Analiz</span>
@@ -384,7 +384,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                   onClick={() => generateQuestions(inputText)}
                   disabled={isProcessing || (inputText.length < 10 && !isProcessing)}
                   className={`
-                    px-10 py-4 bg-black text-white text-xs font-bold tracking-[0.2em] uppercase transition-all flex items-center gap-3 shadow-sharp hover:shadow-none hover:translate-x-1 hover:translate-y-1
+                    w-full md:w-auto px-10 py-4 bg-black text-white text-xs font-bold tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 shadow-sharp hover:shadow-none hover:translate-x-1 hover:translate-y-1
                     ${isProcessing ? 'opacity-80' : ''}
                   `}
                 >
@@ -415,4 +415,75 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                                           <div className="h-full bg-black rounded-full" style={{ width: `${(quest.current / quest.target) * 100}%` }}></div>
                                       </div>
                                       <span className="text-[10px] font-mono text-gray-400">{quest.current}/{quest.target}</span>
-                               
+                                  </div>
+                              </div>
+                          </div>
+                          <div className="flex flex-col items-end">
+                              <span className="text-[10px] font-bold uppercase bg-gray-50 px-2 py-1 rounded text-gray-500 group-hover:bg-black group-hover:text-white transition-colors">
+                                  +{quest.xpReward} XP
+                              </span>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </motion.div>
+        </div>
+
+        {/* RIGHT COLUMN: BADGES & INFO */}
+        <div className="lg:col-span-4 space-y-8 md:space-y-12">
+            
+            {/* BADGE COLLECTION */}
+            <motion.div variants={itemVariants} className="bg-white border border-gray-200 p-6 rounded-2xl">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-serif text-lg">Neural Achievements</h3>
+                    <AwardIcon className="w-5 h-5 text-gray-400" />
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                    {stats.badges.map(badge => (
+                        <div key={badge.id} className="flex flex-col items-center gap-2 group cursor-pointer" title={badge.description}>
+                            <BadgeIcon icon={badge.icon} locked={badge.isLocked} />
+                        </div>
+                    ))}
+                    {/* Placeholders */}
+                    {[...Array(4 - (stats.badges.length % 4))].map((_, i) => (
+                        <div key={`p-${i}`} className="w-12 h-12 rounded-xl border border-dashed border-gray-200 flex items-center justify-center mx-auto opacity-50">
+                            <div className="w-2 h-2 bg-gray-100 rounded-full"></div>
+                        </div>
+                    ))}
+                </div>
+            </motion.div>
+
+            {/* UPGRADE TEASER */}
+            <motion.div variants={itemVariants} className="bg-black text-white p-6 md:p-8 rounded-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/10 to-transparent rounded-full -mr-10 -mt-10 blur-2xl group-hover:bg-white/20 transition-colors"></div>
+                
+                <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="px-2 py-1 bg-white text-black text-[10px] font-bold uppercase rounded">PRO</span>
+                        <span className="text-[10px] font-mono text-white/60">NEURAL TIER</span>
+                    </div>
+                    <h3 className="font-serif text-2xl md:text-3xl mb-4 leading-tight">Unlock Limitless Cognitive Power</h3>
+                    <ul className="space-y-2 mb-8">
+                        <li className="flex items-center gap-2 text-xs text-white/80"><Check className="w-3 h-3" /> Unlimited Quizzes</li>
+                        <li className="flex items-center gap-2 text-xs text-white/80"><Check className="w-3 h-3" /> Advanced Analytics</li>
+                        <li className="flex items-center gap-2 text-xs text-white/80"><Check className="w-3 h-3" /> HD Audio Podcast</li>
+                    </ul>
+                    <button className="w-full py-3 bg-white text-black font-bold uppercase text-xs tracking-widest rounded-lg hover:bg-gray-200 transition-colors">
+                        Upgrade Now
+                    </button>
+                </div>
+            </motion.div>
+
+        </div>
+
+      </div>
+    </motion.div>
+  );
+}
+
+const AwardIcon = ({ className }: { className?: string }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="8" r="7" />
+        <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+);

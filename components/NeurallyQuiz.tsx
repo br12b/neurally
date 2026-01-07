@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, ArrowRight, RotateCw, Trophy, LayoutGrid, Brain, Save, PlusCircle, AlertCircle, RefreshCcw, Search, Globe, ExternalLink, Loader2, StopCircle } from 'lucide-react';
@@ -108,8 +109,8 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
           <div className="w-24 h-24 bg-gray-50 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-gray-100">
             <Brain className="w-10 h-10 text-gray-400" strokeWidth={1.5} />
           </div>
-          <h2 className="font-serif text-4xl font-bold text-black mb-4">No active session.</h2>
-          <p className="text-gray-500 text-lg mb-8 leading-relaxed">
+          <h2 className="font-serif text-3xl md:text-4xl font-bold text-black mb-4">No active session.</h2>
+          <p className="text-gray-500 text-base md:text-lg mb-8 leading-relaxed">
             Provide the AI with a subject or upload notes to initialize the Active Recall system.
           </p>
           <button 
@@ -212,17 +213,17 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
           className="text-center relative"
         >
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
-              <div className="w-[600px] h-[600px] bg-gradient-radial from-black to-transparent rounded-full blur-3xl"></div>
+              <div className="w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-gradient-radial from-black to-transparent rounded-full blur-3xl"></div>
           </div>
 
-          <div className="w-24 h-24 bg-black rounded-full flex items-center justify-center mx-auto mb-8 relative z-10 shadow-2xl ring-4 ring-gray-100">
-            <Trophy className="w-10 h-10 text-white" />
+          <div className="w-20 h-20 md:w-24 md:h-24 bg-black rounded-full flex items-center justify-center mx-auto mb-8 relative z-10 shadow-2xl ring-4 ring-gray-100">
+            <Trophy className="w-8 h-8 md:w-10 md:h-10 text-white" />
           </div>
           
-          <h2 className="font-serif text-6xl font-bold text-black mb-4 tracking-tighter">
+          <h2 className="font-serif text-4xl md:text-6xl font-bold text-black mb-4 tracking-tighter">
             Mastery Achieved.
           </h2>
-          <p className="text-gray-500 text-lg mb-10 max-w-md mx-auto leading-relaxed">
+          <p className="text-gray-500 text-base md:text-lg mb-10 max-w-md mx-auto leading-relaxed">
             Loop count: <span className="text-black font-bold font-mono">{loopCount}</span>. All logic circuits verified.
           </p>
           
@@ -252,11 +253,11 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
           animate={{ opacity: 1 }}
           className="text-center max-w-md w-full relative z-10"
         >
-          <div className="w-20 h-20 bg-white border-2 border-red-500 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
-            <AlertCircle className="w-8 h-8" />
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-white border-2 border-red-500 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
+            <AlertCircle className="w-6 h-6 md:w-8 md:h-8" />
           </div>
           
-          <h3 className="font-serif text-4xl font-bold text-black mb-2 tracking-tight">Loop Option Available</h3>
+          <h3 className="font-serif text-3xl md:text-4xl font-bold text-black mb-2 tracking-tight">Loop Option Available</h3>
           
           <div className="flex items-center justify-center gap-2 mb-6">
              <p className="font-mono text-xs uppercase tracking-widest text-red-500 font-bold">
@@ -272,7 +273,7 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
             {/* OPTION 1: REPAIR LOOP */}
             <button 
                 onClick={startRetryLoop}
-                className="w-full py-5 bg-black text-white font-bold uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-xl hover:shadow-2xl flex items-center justify-center gap-3 border border-black"
+                className="w-full py-5 bg-black text-white font-bold uppercase tracking-[0.2em] hover:bg-neutral-800 transition-all shadow-xl hover:shadow-2xl flex items-center justify-center gap-3 border border-black text-xs md:text-sm"
             >
                 <RotateCw className="w-4 h-4" /> Initialize Repair Loop
             </button>
@@ -317,12 +318,12 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
   };
 
   return (
-    <div className="h-full flex flex-col max-w-4xl mx-auto px-6 py-12 overflow-hidden relative">
+    <div className="h-full flex flex-col max-w-4xl mx-auto px-4 py-6 md:px-6 md:py-12 overflow-hidden relative">
       
       {/* Top Bar */}
-      <div className="flex items-end justify-between mb-12 border-b border-gray-100 pb-6">
+      <div className="flex items-end justify-between mb-8 md:mb-12 border-b border-gray-100 pb-6">
         <div>
-          <span className="text-xs font-mono text-gray-400 mb-2 block tracking-wider uppercase font-bold flex items-center gap-2">
+          <span className="text-[10px] md:text-xs font-mono text-gray-400 mb-2 block tracking-wider uppercase font-bold flex items-center gap-2">
              {loopCount > 0 && <span className="text-red-500 flex items-center gap-1"><RefreshCcw className="w-3 h-3"/> Loop {loopCount}</span>}
              <span>Active Session</span>
           </span>
@@ -330,16 +331,16 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
             key={currentQuestion.topicTag}
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-xl font-bold text-black flex items-center gap-2 font-serif"
+            className="text-lg md:text-xl font-bold text-black flex items-center gap-2 font-serif truncate max-w-[200px] md:max-w-none"
           >
              {currentQuestion.topicTag}
           </motion.h2>
         </div>
         <div className="flex items-center gap-4">
-           <span className="font-mono text-gray-400 text-sm">
+           <span className="font-mono text-gray-400 text-xs md:text-sm">
              {String(currentIndex + 1).padStart(2, '0')} / {String(currentQuestions.length).padStart(2, '0')}
            </span>
-           <div className="w-32 h-1 bg-gray-100 rounded-full overflow-hidden">
+           <div className="w-20 md:w-32 h-1 bg-gray-100 rounded-full overflow-hidden">
               <motion.div 
                 className="h-full bg-black"
                 initial={{ width: 0 }}
@@ -350,7 +351,7 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
         </div>
       </div>
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative overflow-y-auto custom-scrollbar">
         <AnimatePresence mode='wait' custom={direction}>
           <motion.div
             key={currentQuestion.id}
@@ -363,9 +364,9 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
               x: { type: "spring", stiffness: 300, damping: 30 },
               opacity: { duration: 0.2 }
             }}
-            className="space-y-8 w-full"
+            className="space-y-6 md:space-y-8 w-full pb-20"
           >
-            <h1 className="font-serif text-3xl lg:text-4xl font-medium text-black leading-tight">
+            <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl font-medium text-black leading-tight">
               {currentQuestion.text}
             </h1>
 
@@ -395,7 +396,7 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
                     onClick={() => handleOptionSelect(option.id)}
                     disabled={isAnswered}
                     className={`
-                      w-full text-left p-5 lg:p-6 rounded-xl border transition-all duration-200 flex items-center justify-between group font-medium text-lg
+                      w-full text-left p-4 md:p-6 rounded-xl border transition-all duration-200 flex items-center justify-between group font-medium text-base md:text-lg
                       ${optionClass}
                     `}
                   >
@@ -409,16 +410,16 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
         </AnimatePresence>
       </div>
 
-      {/* Rationale / Action Footer */}
-      <div className="mt-8 min-h-[140px]">
+      {/* Rationale / Action Footer - Fixed at bottom for mobile sometimes, but here we keep it flow */}
+      <div className="mt-4 md:mt-8 min-h-[100px] md:min-h-[140px]">
         {!isAnswered ? (
-          <div className="flex justify-end">
+          <div className="flex justify-end pb-4">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleSubmit}
               disabled={!selectedOptionId}
-              className={`px-10 py-4 rounded-none font-bold text-sm tracking-widest uppercase transition-all duration-300 ${
+              className={`w-full md:w-auto px-10 py-4 rounded-none font-bold text-sm tracking-widest uppercase transition-all duration-300 ${
                 selectedOptionId 
                   ? 'bg-black text-white shadow-lg' 
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -431,11 +432,11 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="border-t border-gray-100 pt-6"
+            className="border-t border-gray-100 pt-6 pb-20 md:pb-0"
           >
-            <div className="flex gap-6 items-start">
-               <div className="flex-1">
-                 <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+               <div className="flex-1 w-full">
+                 <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-black bg-gray-100 px-2 py-1">Rationale</span>
                     
                     {/* --- DEEP DIVE BUTTON --- */}
@@ -449,11 +450,11 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
                         `}
                     >
                         {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
-                        {isSearching ? 'Scanning Web...' : 'Neural Search'}
+                        {isSearching ? 'Scanning...' : 'Neural Search'}
                     </button>
                  </div>
                  
-                 <p className="text-gray-600 leading-relaxed text-lg font-light font-serif">
+                 <p className="text-gray-600 leading-relaxed text-base md:text-lg font-light font-serif">
                     {currentQuestion.rationale}
                  </p>
 
@@ -496,7 +497,7 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
                         `}
                     >
                         {saveFeedback ? <Check className="w-3 h-3" /> : <PlusCircle className="w-3 h-3" />} 
-                        {saveFeedback ? 'Başarıyla Eklendi!' : 'Save to Flashcards'}
+                        {saveFeedback ? 'Saved!' : 'Save to Flashcards'}
                     </button>
                  </div>
                </div>
@@ -505,9 +506,9 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
                 whileHover={{ scale: 1.1, rotate: 0 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={handleNext}
-                className="h-14 w-14 bg-black flex items-center justify-center hover:bg-gray-800 transition-colors shrink-0 text-white shadow-lg"
+                className="h-14 w-full md:w-14 bg-black flex items-center justify-center hover:bg-gray-800 transition-colors shrink-0 text-white shadow-lg rounded-xl md:rounded-none"
               >
-                <ArrowRight className="w-6 h-6" />
+                <ArrowRight className="w-6 h-6" /> <span className="md:hidden ml-2 font-bold uppercase text-xs tracking-widest">NEXT</span>
               </motion.button>
             </div>
           </motion.div>

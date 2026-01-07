@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
+import MobileNavigation from './components/MobileNavigation';
 import Dashboard from './components/Dashboard';
 import NeurallyQuiz from './components/NeurallyQuiz';
 import Pomodoro from './components/Pomodoro';
@@ -186,12 +187,12 @@ function App() {
   const isImmersiveView = activeView === 'speedrun';
 
   return (
-    <div className="flex min-h-screen text-ink-900 selection:bg-black selection:text-white overflow-hidden font-sans bg-transparent relative">
+    <div className="flex flex-col md:flex-row min-h-screen text-ink-900 selection:bg-black selection:text-white overflow-hidden font-sans bg-transparent relative">
       
       {/* Global Ambient Background - Hide in immersive modes for performance/aesthetic */}
       {!isImmersiveView && <BackgroundFlow />}
 
-      {/* SIDEBAR: Only show if NOT in SpeedRun mode */}
+      {/* DESKTOP SIDEBAR */}
       {activeView !== 'speedrun' && (
         <Sidebar 
           activeView={activeView} 
@@ -202,8 +203,18 @@ function App() {
           setLanguage={setLanguage}
         />
       )}
+
+      {/* MOBILE NAVIGATION (Only visible on small screens) */}
+      {activeView !== 'speedrun' && (
+        <MobileNavigation 
+          activeView={activeView}
+          onChangeView={setActiveView}
+          user={user}
+          onLogout={handleLogout}
+        />
+      )}
       
-      <main className={`flex-1 relative h-screen z-10 ${isImmersiveView ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <main className={`flex-1 relative h-[calc(100vh-80px)] md:h-screen z-10 ${isImmersiveView ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
         <div className={`relative z-10 mx-auto ${isImmersiveView ? 'w-full h-full' : 'min-h-screen max-w-[1600px]'}`}>
           <AnimatePresence mode="wait">
             <motion.div
