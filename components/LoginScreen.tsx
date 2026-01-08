@@ -4,7 +4,7 @@ import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { ArrowRight, Disc, ScanLine, AlertCircle, PlayCircle } from 'lucide-react';
 import { User } from '../types';
 import BackgroundFlow from './BackgroundFlow';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, googleProvider } from '../utils/firebase';
 
 interface LoginScreenProps {
@@ -53,26 +53,23 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
 
     try {
+        // --- MOBILE APP AUTH HANDLER (REDIRECT MODE) ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const isMobile = urlParams.get('mobile') === 'true';
+
+        if (isMobile) {
+            // Mobil WebView'larda Popup sorun çıkarır, Redirect kullanıyoruz.
+            // Geri dönüşü App.tsx içindeki onAuthStateChanged yakalayacak.
+            sessionStorage.setItem('neurally_mobile_auth', 'true'); // Redirect sonrası hatırlamak için
+            await signInWithRedirect(auth, googleProvider);
+            return; // Sayfa yönleneceği için burası durur.
+        }
+        // -----------------------------------------------
+
+        // DESKTOP: POPUP MODE
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
         
-        // --- MOBILE APP DEEP LINK HANDLER ---
-        // Mobil uygulama için deep link kontrolü
-        const urlParams = new URLSearchParams(window.location.search);
-        const isMobile = urlParams.get('mobile') === 'true';
-        
-        if (isMobile && result.user) {
-          // Firebase ID Token'ı al (Doğrudan result üzerinden)
-          const idToken = await result.user.getIdToken();
-          
-          // Mobil uygulamaya geri dön (deep link)
-          window.location.href = `neurally.app://callback?token=${idToken}`;
-          
-          // İşlemi durdur (onLogin çağırma, zaten mobil app halleder)
-          return;
-        }
-        // ------------------------------------
-
         const appUser: User = {
             id: user.uid,
             name: user.displayName || "Anonymous Scholar",
