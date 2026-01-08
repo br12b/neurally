@@ -58,11 +58,47 @@ function App() {
       ]
   });
 
+  // --- MOBILE OAUTH CALLBACK HANDLER ---
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isMobile = urlParams.get('mobile') === 'true';
+    const callbackUrl = urlParams.get('callback');
+    
+    if (isMobile && callbackUrl) {
+      console.log('Mobile OAuth flow detected, callback URL:', callbackUrl);
+      
+      // Listen for successful auth specifically for mobile redirect
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+          console.log('User authenticated, preparing mobile redirect...');
+          
+          try {
+            // Get ID token
+            const idToken = await firebaseUser.getIdToken();
+            
+            // Redirect back to mobile app with token
+            // The mobile app should listen for this deep link
+            const redirectUrl = `${callbackUrl}?token=${idToken}`;
+            console.log('Redirecting to:', redirectUrl);
+            
+            window.location.href = redirectUrl;
+          } catch (error) {
+            console.error('Failed to get ID token for mobile redirect:', error);
+          }
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, []);
+
   // --- FIREBASE AUTH & REAL-TIME DATABASE LISTENER ---
   useEffect(() => {
     let unsubscribeFirestore: () => void;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // If we are in the middle of a mobile auth flow, we might not want to fully load the app UI 
+      // but just wait for the redirect. However, loading it doesn't hurt.
+      
       if (firebaseUser) {
         setSyncStatus('syncing');
         setDbError(null);
