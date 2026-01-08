@@ -80,11 +80,36 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           }
       } catch (error: any) {
           console.error("Email Auth Error:", error);
-          let msg = "Giriş başarısız.";
-          if (error.code === 'auth/wrong-password') msg = "Hatalı şifre.";
-          if (error.code === 'auth/user-not-found') msg = "Kullanıcı bulunamadı. Kayıt olun.";
-          if (error.code === 'auth/email-already-in-use') msg = "Bu e-posta zaten kullanımda.";
-          if (error.code === 'auth/invalid-email') msg = "Geçersiz e-posta formatı.";
+          let msg = "İşlem başarısız.";
+          
+          // Enhanced Error Handling
+          switch (error.code) {
+              case 'auth/wrong-password':
+                  msg = "Hatalı şifre.";
+                  break;
+              case 'auth/user-not-found':
+                  msg = "Kullanıcı bulunamadı. Lütfen kayıt olun.";
+                  break;
+              case 'auth/email-already-in-use':
+                  msg = "Bu e-posta adresi zaten kullanımda.";
+                  break;
+              case 'auth/invalid-email':
+                  msg = "Geçersiz e-posta formatı.";
+                  break;
+              case 'auth/weak-password':
+                  msg = "Şifre çok zayıf. Daha karmaşık bir şifre seçin.";
+                  break;
+              case 'auth/operation-not-allowed':
+                  msg = "E-posta girişi devre dışı (Firebase Konsolunu kontrol edin).";
+                  break;
+              case 'auth/too-many-requests':
+                  msg = "Çok fazla deneme yapıldı. Lütfen biraz bekleyin.";
+                  break;
+              default:
+                  // Show raw error message for unknown errors to help debugging
+                  msg = `Hata: ${error.message}`;
+          }
+          
           setErrorMsg(msg);
           setIsLoading(false);
       }
@@ -259,7 +284,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                             </button>
                             
                             <button 
-                                onClick={() => setIsRegistering(!isRegistering)} 
+                                onClick={() => { setIsRegistering(!isRegistering); setErrorMsg(null); }} 
                                 className="text-[10px] text-white border-b border-white/30 hover:border-white pb-0.5 uppercase font-mono tracking-wide transition-all"
                             >
                                 {isRegistering ? 'Hesabım Var: Giriş Yap' : 'Hesap Yok: Kayıt Ol'}
