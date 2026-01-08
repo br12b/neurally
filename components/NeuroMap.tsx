@@ -22,7 +22,7 @@ interface MindNode {
 export default function NeuralList({ language, user }: NeuroMapProps) {
   const isTr = language === 'tr';
 
-  // --- 1. HYBRID STATE INITIALIZATION (INSTANT LOAD) ---
+  // --- 1. HYBRID STATE INITIALIZATION ---
   const getLocalData = (key: string, defaultVal: any) => {
       if (!user) return defaultVal;
       try {
@@ -36,7 +36,7 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
   const localKey = user ? `neurally_neurallist_${user.id}` : '';
   const localData = getLocalData(localKey, { subject: "", nodes: [] });
 
-  // State initialization directly from LocalStorage
+  // State initialization
   const [setupMode, setSetupMode] = useState<boolean>(!localData.subject);
   const [subject, setSubject] = useState<string>(localData.subject || "");
   const [topicsInput, setTopicsInput] = useState("");
@@ -45,27 +45,24 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
   
   // Sync States
   const [isSaving, setIsSaving] = useState(false);
-  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [isCloudReady, setIsCloudReady] = useState(false); // KİLİT: Bulut verisi gelmeden yazma!
+  const [status, setStatus] = useState<'offline' | 'synced' | 'saving'>('offline');
   
   // Ref to prevent loop (Cloud update vs Local typing)
   const isRemoteUpdate = useRef(false);
+  const saveTimeoutRef = useRef<any>(null);
 
-  // --- 2. REAL-TIME CLOUD LISTENER (onSnapshot) ---
+  // --- 2. REAL-TIME CLOUD LISTENER (NOTION STYLE) ---
   useEffect(() => {
     if (!user) return;
 
     const docRef = doc(db, "neuralLists", user.id);
-    setIsCloudSyncing(true);
 
-    // Canlı dinleyici (Real-time Listener)
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
-        setIsCloudSyncing(false);
-        
         if (docSnap.exists()) {
             const cloudData = docSnap.data();
             
             // Eğer gelen veri, şu anki halimizden farklıysa güncelle
-            // (Kendi yazdığımız veriyi üzerine yazmamak için basit bir kontrol)
             const localStr = JSON.stringify({ subject, nodes });
             const cloudStr = JSON.stringify({ subject: cloudData.subject, nodes: cloudData.nodes });
 
@@ -83,46 +80,59 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
                 }));
             }
         }
+        // İster veri gelsin, ister gelmesin (boş olsun), artık bağlantı kuruldu.
+        setIsCloudReady(true);
+        setStatus('synced');
+
     }, (error) => {
         console.error("Sync Error:", error);
-        setIsCloudSyncing(false);
+        // Hata durumunda da kilidi aç ki local çalışabilsin
+        setIsCloudReady(true);
+        setStatus('offline');
     });
 
     return () => unsubscribe();
   }, [user]); 
 
-  // --- 3. HYBRID SAVE (Local Instant + Cloud Debounced) ---
+  // --- 3. AUTO-SAVE MECHANISM (DEBOUNCED) ---
   useEffect(() => {
-    if (!user || nodes.length === 0) return;
+    // 1. Kullanıcı yoksa veya Bulut Bağlantısı Henüz Kurulmadıysa ASLA KAYDETME.
+    // Bu, boş state'in dolu bulut verisini ezmesini engeller.
+    if (!user || !isCloudReady) return;
     
-    // Eğer değişiklik buluttan geldiyse, tekrar buluta yazma (Loop önleyici)
+    // 2. Eğer değişiklik buluttan geldiyse, tekrar buluta yazma (Loop önleyici)
     if (isRemoteUpdate.current) {
         isRemoteUpdate.current = false;
         return;
     }
 
-    // 1. Instant Local Save
+    // Local Save (Anında)
     localStorage.setItem(localKey, JSON.stringify({ subject, nodes }));
+    setStatus('saving');
 
-    // 2. Debounced Cloud Save
-    setIsSaving(true);
-    const timeout = setTimeout(async () => {
+    // Cloud Save (Gecikmeli)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(async () => {
+        // Boş veri kaydetmeye çalışıyorsak ve setup mode'daysak, belki de silmeliyiz?
+        // Şimdilik sadece doluysa veya setup bitmişse kaydedelim.
+        if (setupMode && !subject) return; 
+
         try {
-            // merge: true kullanarak sadece değişen alanları güncelle
             await setDoc(doc(db, "neuralLists", user.id), {
                 subject: subject,
                 nodes: nodes,
                 lastUpdated: new Date()
             }, { merge: true });
+            setStatus('synced');
         } catch (error) {
             console.error("Cloud Save Failed:", error);
-        } finally {
-            setIsSaving(false);
+            setStatus('offline');
         }
-    }, 1500); // 1.5s gecikme ile yaz
+    }, 1500); // 1.5s gecikme
 
-    return () => clearTimeout(timeout);
-  }, [nodes, subject, user]);
+    return () => clearTimeout(saveTimeoutRef.current);
+  }, [nodes, subject, user, isCloudReady]); // isCloudReady dependency is critical!
 
   const generateMap = () => {
     if (!subject || !topicsInput) return;
@@ -151,13 +161,13 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
         });
     });
 
+    isRemoteUpdate.current = false; // Elle değişim
     setNodes(newNodes);
     setSetupMode(false);
   };
 
   const updateNodeNotes = (id: string, text: string) => {
-    // Kullanıcı elle değiştirdiği için remote flag'i kapat
-    isRemoteUpdate.current = false; 
+    isRemoteUpdate.current = false; // Elle değişim
     setNodes(prev => prev.map(n => n.id === id ? { ...n, notes: text } : n));
   };
 
@@ -169,7 +179,10 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
           setSetupMode(true);
           setSelectedNode(null);
           localStorage.removeItem(localKey);
+          
           if (user) {
+              // Reset flag, direct delete
+              isRemoteUpdate.current = false;
               deleteDoc(doc(db, "neuralLists", user.id)).catch(e => console.error(e));
           }
       }
@@ -177,6 +190,15 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
 
   const coreNode = nodes.find(n => n.type === 'core');
   const listNodes = nodes.filter(n => n.type === 'satellite');
+
+  // --- LOADING GUARD ---
+  if (!isCloudReady && !setupMode && nodes.length === 0) {
+      return (
+          <div className="h-full w-full flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+          </div>
+      );
+  }
 
   return (
     <div className="h-full w-full relative bg-[#FAFAFA] flex flex-col font-sans select-none text-ink-900 overflow-hidden">
@@ -192,8 +214,8 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
                  Neural List <span className="text-white bg-black font-sans text-[10px] font-bold tracking-[0.2em] px-2 py-0.5 rounded-full">LIVE</span>
              </h1>
              <div className="flex items-center gap-2 text-[10px] font-mono text-gray-400 mt-2">
-                 {isCloudSyncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
-                 <span>{isCloudSyncing ? 'SYNCING...' : `DB: ${user?.email}`}</span>
+                 <Database className="w-3 h-3" />
+                 <span>{status === 'synced' ? 'SYNCED' : status === 'saving' ? 'SAVING...' : 'OFFLINE'}</span>
              </div>
          </motion.div>
          
@@ -317,13 +339,13 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
                           </div>
                           <div className="flex justify-between border-b border-gray-100 pb-2">
                               <span className="uppercase tracking-widest">Status</span>
-                              {isSaving ? (
+                              {status === 'saving' ? (
                                   <span className="text-gray-400 font-bold flex items-center gap-1">
                                       <RefreshCw className="w-3 h-3 animate-spin" /> Saving...
                                   </span>
                               ) : (
                                   <span className="text-green-600 font-bold flex items-center gap-1">
-                                      <Cloud className="w-3 h-3" /> Online
+                                      <Cloud className="w-3 h-3" /> Synced
                                   </span>
                               )}
                           </div>
@@ -436,11 +458,11 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
                               <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center text-xs text-gray-400 font-mono z-20">
                                   <div className="flex items-center gap-2">
                                       <Activity className="w-3 h-3" />
-                                      <span>Ready to sync</span>
+                                      <span>Auto-Save Active</span>
                                   </div>
                                   <div className="flex items-center gap-2 text-green-600">
-                                      {isSaving ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                                      {isSaving ? (isTr ? 'KAYDEDİLİYOR...' : 'SAVING...') : (isTr ? 'KAYDEDİLDİ' : 'SAVED')}
+                                      {status === 'saving' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                      {status === 'saving' ? (isTr ? 'KAYDEDİLİYOR...' : 'SAVING...') : (isTr ? 'KAYDEDİLDİ' : 'SAVED')}
                                   </div>
                               </div>
                           </motion.div>
