@@ -46,12 +46,35 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       getRedirectResult(auth)
         .then((result) => {
             if (result) {
-                // Successfully returned from Google Redirect
-                // We do NOT need to manually redirect to a deep link here.
-                // Firebase keeps the session state, so App.tsx's onAuthStateChanged
-                // will fire and log the user in automatically.
-                console.log("Redirect login successful");
+                // 1. Check if this flow started as a Mobile Auth flow
+                const isMobileSession = sessionStorage.getItem('neurally_mobile_auth') === 'true';
                 
+                if (isMobileSession) {
+                    console.log("Mobile Redirect Success. Extracting Google Credentials...");
+                    
+                    // 2. Extract GOOGLE ID TOKEN (Crucial for Native App validation)
+                    // Do NOT use result.user.getIdToken() here, native apps usually need the Provider Token.
+                    const credential = GoogleAuthProvider.credentialFromResult(result);
+                    const googleIdToken = credential?.idToken;
+                    const googleAccessToken = credential?.accessToken;
+
+                    if (googleIdToken) {
+                        // 3. Trigger Deep Link to Native App
+                        // The native app should listen for 'neurally.app://google/callback'
+                        const deepLink = `neurally.app://google/callback?id_token=${googleIdToken}&access_token=${googleAccessToken}`;
+                        console.log("Redirecting to Native App:", deepLink);
+                        
+                        // Clear flag
+                        sessionStorage.removeItem('neurally_mobile_auth');
+                        
+                        // FORCE REDIRECT
+                        window.location.href = deepLink;
+                        return;
+                    }
+                }
+
+                // 4. Standard Web Flow (Fallback or Desktop)
+                console.log("Web Login Successful");
                 const user = result.user;
                 const appUser: User = {
                     id: user.uid,
@@ -67,6 +90,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           console.error("Redirect Auth Error:", error);
           setErrorMsg(`Giriş Hatası: ${error.message}`);
           setIsLoading(false);
+          sessionStorage.removeItem('neurally_mobile_auth');
       });
   }, []);
 
@@ -90,7 +114,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         const isMobile = isMobileParam || isMobileUA;
 
         if (isMobile) {
-            console.log("Mobile environment detected. Using Redirect flow.");
+            console.log("Mobile environment detected. Setting flag and starting Redirect flow.");
+            // Set flag so we know to try Deep Link on return
+            sessionStorage.setItem('neurally_mobile_auth', 'true'); 
             await signInWithRedirect(auth, googleProvider);
             return;
         }
