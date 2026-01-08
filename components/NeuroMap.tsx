@@ -22,7 +22,7 @@ interface MindNode {
 export default function NeuralList({ language, user }: NeuroMapProps) {
   const isTr = language === 'tr';
 
-  // --- HYBRID STATE INITIALIZATION (INSTANT LOAD) ---
+  // --- 1. HYBRID STATE INITIALIZATION (INSTANT LOAD) ---
   const getLocalData = (key: string, defaultVal: any) => {
       if (!user) return defaultVal;
       const saved = localStorage.getItem(key);
@@ -36,7 +36,7 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
   const localKey = user ? `neurally_neurallist_${user.id}` : '';
   const localData = getLocalData(localKey, { subject: "", nodes: [] });
 
-  // State
+  // State initialization directly from LocalStorage
   const [setupMode, setSetupMode] = useState<boolean>(!localData.subject);
   const [subject, setSubject] = useState<string>(localData.subject || "");
   const [topicsInput, setTopicsInput] = useState("");
@@ -47,7 +47,7 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
-  // --- 1. BACKGROUND CLOUD FETCH (Non-Blocking) ---
+  // --- 2. BACKGROUND CLOUD FETCH (Silent Sync) ---
   useEffect(() => {
     if (!user) return;
 
@@ -59,7 +59,13 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
 
             if (docSnap.exists()) {
                 const cloudData = docSnap.data();
-                if (cloudData.nodes && cloudData.nodes.length > 0) {
+                
+                // Compare Cloud vs Local to decide update
+                const localStr = JSON.stringify({ subject, nodes });
+                const cloudStr = JSON.stringify({ subject: cloudData.subject, nodes: cloudData.nodes });
+
+                if (cloudData.nodes && cloudData.nodes.length > 0 && localStr !== cloudStr) {
+                    // Update state and local cache with newer cloud data
                     setNodes(cloudData.nodes);
                     setSubject(cloudData.subject || "");
                     setSetupMode(false);
@@ -77,16 +83,20 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
         }
     };
 
-    syncFromCloud();
-  }, [user]);
+    // Delay slighty to let UI paint first
+    const timer = setTimeout(syncFromCloud, 500);
+    return () => clearTimeout(timer);
+  }, [user]); // Run once on mount per user
 
-  // --- 2. HYBRID SAVE (Local + Cloud) ---
+  // --- 3. HYBRID SAVE (Local Instant + Cloud Debounced) ---
   useEffect(() => {
     if (!user || nodes.length === 0) return;
     
-    setIsSaving(true);
+    // 1. Instant Local Save
     localStorage.setItem(localKey, JSON.stringify({ subject, nodes }));
 
+    // 2. Debounced Cloud Save
+    setIsSaving(true);
     const timeout = setTimeout(async () => {
         try {
             await setDoc(doc(db, "neuralLists", user.id), {

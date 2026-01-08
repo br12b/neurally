@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Save, Type, Highlighter, List, Quote, Terminal, Maximize2, Minimize2, Check, Keyboard, Volume2, VolumeX, Laptop, Download, FileText, Image as ImageIcon, X, Trash2, Plus, FileUp, Loader2, ChevronRight, Search, Cloud, RefreshCw, Menu, WifiOff, AlertCircle } from 'lucide-react';
+import { Sparkles, Save, Type, Highlighter, List, Quote, Terminal, Maximize2, Minimize2, Check, Keyboard, Volume2, VolumeX, Laptop, Download, FileText, Image as ImageIcon, X, Trash2, Plus, FileUp, Loader2, ChevronRight, Search, Cloud, RefreshCw, Menu, WifiOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { createAIClient } from '../utils/ai';
 import { User } from '../types';
 import { globalAudio } from '../utils/audio';
@@ -23,31 +23,36 @@ interface SmartNotesProps {
 }
 
 export default function SmartNotes({ user }: SmartNotesProps) {
-  // --- LOCAL CACHE INIT ---
+  // --- 1. SUPER FAST INIT (LOCAL STORAGE FIRST) ---
   const getCachedNotes = (): Note[] => {
       if (typeof window === 'undefined') return [];
       try {
           const saved = localStorage.getItem(`neurally_notes_cache_${user.id}`);
-          return saved ? JSON.parse(saved) : [];
-      } catch {
-          return [];
+          if (saved) {
+              return JSON.parse(saved);
+          }
+      } catch (e) {
+          console.error("Cache parse error", e);
       }
+      return []; // Return empty only if nothing is cached
   };
 
   const [notes, setNotes] = useState<Note[]>(getCachedNotes());
+  // Eğer cache'den veri geldiyse direkt yüklendi say (isLoaded = true)
+  const [isLoaded, setIsLoaded] = useState<boolean>(notes.length > 0); 
   const [activeNoteId, setActiveNoteId] = useState<string | null>(notes.length > 0 ? notes[0].id : null);
   
   // States
   const [isSaving, setIsSaving] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // New state for manual sync
-  const [isLoaded, setIsLoaded] = useState(notes.length > 0); 
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); 
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
-  const [lastSaved, setLastSaved] = useState("Synced");
+  const [lastSaved, setLastSaved] = useState("Local");
   const [zenMode, setZenMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
+  const [justSaved, setJustSaved] = useState(false); 
   
-  // Loop Prevention Flag
+  // Flag to prevent loop
   const isRemoteUpdate = useRef(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -56,47 +61,60 @@ export default function SmartNotes({ user }: SmartNotesProps) {
   
   const [soundMode, setSoundMode] = useState<SoundMode>('thock'); 
 
-  // --- 1. REAL-TIME CLOUD SYNC (LOAD ONLY) ---
+  // --- 2. SILENT CLOUD SYNC (BACKGROUND) ---
   useEffect(() => {
       if (!user) return;
 
       const userDocRef = doc(db, "users", user.id);
       
+      // Bu listener arka planda çalışır, UI'ı bloklamaz.
       const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
               const data = docSnap.data();
               if (data.smartNotes && Array.isArray(data.smartNotes) && data.smartNotes.length > 0) {
                   
-                  // Mark as remote update so we don't trigger "Unsaved Changes" flag
-                  isRemoteUpdate.current = true;
-                  
+                  // Gelen veri yerel veriden farklıysa güncelle
                   setNotes(prev => {
-                      if (JSON.stringify(prev) === JSON.stringify(data.smartNotes)) return prev;
-                      return data.smartNotes;
+                      const isDifferent = JSON.stringify(prev) !== JSON.stringify(data.smartNotes);
+                      if (isDifferent) {
+                          isRemoteUpdate.current = true;
+                          // Cache'i de güncelle ki sonraki açılışta güncel olsun
+                          localStorage.setItem(`neurally_notes_cache_${user.id}`, JSON.stringify(data.smartNotes));
+                          return data.smartNotes;
+                      }
+                      return prev;
                   });
 
-                  if (!activeNoteId) setActiveNoteId(data.smartNotes[0].id);
+                  if (!activeNoteId && data.smartNotes.length > 0) {
+                      setActiveNoteId(data.smartNotes[0].id);
+                  }
                   
-                  // Update Local Cache immediately
-                  localStorage.setItem(`neurally_notes_cache_${user.id}`, JSON.stringify(data.smartNotes));
-                  
-                  // Remote data loaded, so no unsaved changes
                   setHasUnsavedChanges(false);
-              } else if (notes.length === 0) {
-                  createDefaultNote();
-              }
-          } else {
-              if (notes.length === 0) createDefaultNote();
+                  setLastSaved("Synced");
+              } 
           }
+          // Veri gelmese bile (veya boş olsa bile) artık yüklendi sayıyoruz.
           setIsLoaded(true);
+          
+          if (notes.length === 0 && isLoaded) {
+             createDefaultNote();
+          }
+
       }, (error) => {
-          console.error("Sync Error:", error);
-          setIsLoaded(true);
+          console.error("Sync Error (Silent):", error);
+          setIsLoaded(true); // Hata olsa bile ekranı aç
       });
 
       globalAudio.init();
       return () => unsubscribe();
   }, [user.id]);
+
+  // İlk açılışta hiç not yoksa default oluştur
+  useEffect(() => {
+      if (isLoaded && notes.length === 0) {
+          createDefaultNote();
+      }
+  }, [isLoaded]);
 
   const createDefaultNote = () => {
       const newNote: Note = {
@@ -108,42 +126,54 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       };
       setNotes([newNote]);
       setActiveNoteId(newNote.id);
+      localStorage.setItem(`neurally_notes_cache_${user.id}`, JSON.stringify([newNote]));
   };
 
-  // --- 2. LOCAL BACKUP & DIRTY FLAG (NO AUTO CLOUD SAVE) ---
+  // --- 3. LOCAL PERSISTENCE (INSTANT SAVE) ---
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!user) return;
 
-    // If change came from Firebase, ignore
+    // Remote update ise (Firebase'den geldiyse) tekrar kaydetmeye çalışma
     if (isRemoteUpdate.current) {
         isRemoteUpdate.current = false;
         return;
     }
     
-    // 1. Always save to LocalStorage instantly (Crash protection)
+    // Her tuş vuruşunda LocalStorage'a yaz (Hız kaybı olmaz, veri kaybını önler)
     localStorage.setItem(`neurally_notes_cache_${user.id}`, JSON.stringify(notes));
 
-    // 2. Mark as "Unsaved to Cloud"
+    // UI'da "Kaydedilmedi" durumunu göster
     setHasUnsavedChanges(true);
+    setJustSaved(false);
 
-  }, [notes, user, isLoaded]);
+  }, [notes, user]);
 
-  // --- 3. MANUAL SAVE HANDLER ---
-  const handleManualSave = async () => {
+  // --- 4. MANUAL CLOUD SAVE ---
+  const handleManualSave = () => {
       if (!user) return;
+      
       setIsSaving(true);
-      try {
-          const userDocRef = doc(db, "users", user.id);
-          await setDoc(userDocRef, { smartNotes: notes }, { merge: true });
-          
-          setLastSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-          setHasUnsavedChanges(false);
-      } catch (error) {
-          console.error("Save failed:", error);
-          setLastSaved("Error");
-      } finally {
+      
+      // Optimistic Update: Kullanıcıya hemen "Kaydedildi" göster
+      const userDocRef = doc(db, "users", user.id);
+      setDoc(userDocRef, { smartNotes: notes }, { merge: true })
+        .then(() => {
+            setLastSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        })
+        .catch((err) => {
+            console.error("Cloud Save Failed:", err);
+            setLastSaved("Error");
+            setHasUnsavedChanges(true); // Geri al
+            alert("Bulut senkronizasyonu başarısız. Yerel yedek güvende.");
+        });
+
+      // UI Feedback Loop (Yapay gecikme ile UX iyileştirme)
+      setTimeout(() => {
           setIsSaving(false);
-      }
+          setHasUnsavedChanges(false); 
+          setJustSaved(true); 
+          setTimeout(() => setJustSaved(false), 2000);
+      }, 500);
   };
 
   // --- HANDLERS ---
@@ -151,7 +181,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
 
   const updateActiveNote = (updates: Partial<Note>) => {
       if (!activeNote) return;
-      isRemoteUpdate.current = false; // User is typing, so it's a local update
+      isRemoteUpdate.current = false; // Kullanıcı yazıyor
       setNotes(prev => prev.map(n => n.id === activeNote.id ? { ...n, ...updates, lastModified: Date.now() } : n));
   };
 
@@ -163,15 +193,18 @@ export default function SmartNotes({ user }: SmartNotesProps) {
           images: [],
           lastModified: Date.now()
       };
-      setNotes([newNote, ...notes]);
+      const updatedNotes = [newNote, ...notes];
+      setNotes(updatedNotes);
       setActiveNoteId(newNote.id);
-      setIsMobileMenuOpen(false); 
+      setIsMobileMenuOpen(false);
+      // Local save immediately
+      localStorage.setItem(`neurally_notes_cache_${user.id}`, JSON.stringify(updatedNotes));
   };
 
   const deleteNote = (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
       if (notes.length <= 1) {
-          alert("At least one note must remain.");
+          alert("En az bir not kalmalıdır.");
           return;
       }
       const newNotes = notes.filter(n => n.id !== id);
@@ -179,6 +212,8 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       if (activeNoteId === id) {
           setActiveNoteId(newNotes[0].id);
       }
+      localStorage.setItem(`neurally_notes_cache_${user.id}`, JSON.stringify(newNotes));
+      setHasUnsavedChanges(true);
   };
 
   const handleKeyDown = () => {
@@ -227,7 +262,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       if (!file || !activeNote) return;
 
       if (file.size > 20 * 1024 * 1024) { 
-          alert("File too large. Please upload PDF under 20MB.");
+          alert("Dosya çok büyük. Lütfen 20MB altı PDF yükleyin.");
           return;
       }
 
@@ -245,12 +280,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
               const result = await ai.models.generateContent({
                   model: "gemini-2.5-flash",
                   contents: [
-                      {
-                          inlineData: {
-                              mimeType: "application/pdf",
-                              data: base64Content
-                          }
-                      },
+                      { inlineData: { mimeType: "application/pdf", data: base64Content } },
                       { text: "Extract all text from this PDF document. Formatting: Maintain headers and bullet points. Do not summarize, just extract the structured content." }
                   ]
               });
@@ -267,7 +297,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
           };
       } catch (error) {
           console.error("PDF Error:", error);
-          alert("Failed to analyze PDF. Please try a smaller file or text-based PDF.");
+          alert("PDF analizi başarısız oldu.");
           setIsProcessingPdf(false);
       }
   };
@@ -323,7 +353,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       </div>
   );
 
-  // --- SKELETON LOADING STATE ---
+  // --- SKELETON LOADING STATE (Only shows if NO cached notes exist) ---
   if (!isLoaded && notes.length === 0) {
       return (
           <div className="flex h-full p-4 md:p-8 gap-6 max-w-[1800px] mx-auto animate-pulse">
@@ -341,6 +371,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       );
   }
 
+  // Fallback if somehow activeNote is missing despite logic
   if (!activeNote) return null;
 
   return (
@@ -464,19 +495,21 @@ export default function SmartNotes({ user }: SmartNotesProps) {
                 onClick={handleManualSave}
                 disabled={isSaving || !hasUnsavedChanges}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold uppercase tracking-wider
-                    ${hasUnsavedChanges 
-                        ? 'bg-black text-white border-black hover:bg-gray-800 shadow-md' 
-                        : 'bg-white text-gray-400 border-transparent cursor-default'
+                    ${justSaved 
+                        ? 'bg-green-50 text-green-600 border-green-200 cursor-default' 
+                        : hasUnsavedChanges 
+                            ? 'bg-black text-white border-black hover:bg-gray-800 shadow-md' 
+                            : 'bg-white text-gray-400 border-transparent cursor-default'
                     }
                 `}
               >
-                 {isSaving ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                 <span className="hidden md:inline">
-                     {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Saved'}
-                 </span>
-                 <span className="md:hidden">
-                     {isSaving ? '...' : hasUnsavedChanges ? 'Save' : ''}
-                 </span>
+                 {justSaved ? (
+                     <><CheckCircle2 className="w-3 h-3" /> Saved</>
+                 ) : isSaving ? (
+                     <><RefreshCw className="w-3 h-3 animate-spin" /> Saving...</>
+                 ) : (
+                     <><Save className="w-3 h-3" /> {hasUnsavedChanges ? 'Save Changes' : 'Saved'}</>
+                 )}
               </button>
 
               <button 
@@ -512,7 +545,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="bg-[#F5F5F0] border-y border-[#E5E5E0] px-6 md:px-12 py-6 flex gap-4 overflow-x-auto z-20 relative"
+                        className="bg-[#F5F5F5] border-y border-[#E5E5E0] px-6 md:px-12 py-6 flex gap-4 overflow-x-auto z-20 relative"
                     >
                         {activeNote.images.map((img, idx) => (
                             <motion.div 
