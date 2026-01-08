@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { ArrowRight, Disc, ScanLine, AlertCircle, PlayCircle } from 'lucide-react';
@@ -55,6 +56,24 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
         
+        // --- MOBILE APP DEEP LINK HANDLER ---
+        // Mobil uygulama için deep link kontrolü
+        const urlParams = new URLSearchParams(window.location.search);
+        const isMobile = urlParams.get('mobile') === 'true';
+        
+        if (isMobile && user) {
+          // Firebase ID Token'ı al
+          const idToken = await user.getIdToken();
+          
+          // Mobil uygulamaya geri dön (deep link)
+          // Bu şema (neurally.app://) mobil uygulamada tanımlı olmalıdır.
+          window.location.href = `neurally.app://callback?token=${idToken}`;
+          
+          // İşlemi durdur (onLogin çağırma, zaten mobil app halleder)
+          return;
+        }
+        // ------------------------------------
+
         const appUser: User = {
             id: user.uid,
             name: user.displayName || "Anonymous Scholar",
