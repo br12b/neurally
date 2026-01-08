@@ -43,37 +43,38 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   // --- REDIRECT RESULT HANDLER ---
   useEffect(() => {
+      // Check if we initiated a mobile flow previously
+      const isMobileSession = sessionStorage.getItem('neurally_mobile_auth') === 'true';
+      if (isMobileSession) setIsLoading(true);
+
       getRedirectResult(auth)
         .then((result) => {
             if (result) {
-                // 1. Check if this flow started as a Mobile Auth flow
-                const isMobileSession = sessionStorage.getItem('neurally_mobile_auth') === 'true';
-                
                 if (isMobileSession) {
-                    console.log("Mobile Redirect Success. Extracting Google Credentials...");
+                    console.log("Mobile Redirect Success. Processing Credentials...");
                     
-                    // 2. Extract GOOGLE ID TOKEN (Crucial for Native App validation)
-                    // Do NOT use result.user.getIdToken() here, native apps usually need the Provider Token.
+                    // 1. EXTRACT GOOGLE CREDENTIALS
+                    // Native apps often need the Google ID Token to validate the session.
                     const credential = GoogleAuthProvider.credentialFromResult(result);
                     const googleIdToken = credential?.idToken;
                     const googleAccessToken = credential?.accessToken;
 
                     if (googleIdToken) {
-                        // 3. Trigger Deep Link to Native App
-                        // The native app should listen for 'neurally.app://google/callback'
+                        // 2. CONSTRUCT DEEP LINK
+                        // This URL Scheme must match what is defined in the mobile app (Info.plist / AndroidManifest)
                         const deepLink = `neurally.app://google/callback?id_token=${googleIdToken}&access_token=${googleAccessToken}`;
+                        
                         console.log("Redirecting to Native App:", deepLink);
                         
-                        // Clear flag
+                        // 3. CLEAR FLAG & REDIRECT
                         sessionStorage.removeItem('neurally_mobile_auth');
-                        
-                        // FORCE REDIRECT
                         window.location.href = deepLink;
                         return;
                     }
                 }
 
-                // 4. Standard Web Flow (Fallback or Desktop)
+                // 4. DESKTOP / WEB FALLBACK
+                // If not mobile, or deep link failed, log them into the web app
                 console.log("Web Login Successful");
                 const user = result.user;
                 const appUser: User = {
@@ -84,6 +85,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                     tier: 'Scholar'
                 };
                 onLogin(appUser);
+            } else {
+                // No result (page load without redirect), stop loading
+                setIsLoading(false);
             }
         })
         .catch((error) => {
@@ -115,7 +119,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
         if (isMobile) {
             console.log("Mobile environment detected. Setting flag and starting Redirect flow.");
-            // Set flag so we know to try Deep Link on return
+            // Set flag so App.tsx knows to wait for redirect result
             sessionStorage.setItem('neurally_mobile_auth', 'true'); 
             await signInWithRedirect(auth, googleProvider);
             return;
@@ -314,20 +318,22 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                </motion.div>
            )}
 
-           <motion.button
-             whileHover={{ scale: 1.02 }}
-             whileTap={{ scale: 0.98 }}
-             onClick={handleGoogleLogin}
-             disabled={isLoading}
-             className="group relative w-full bg-white text-black h-16 flex items-center justify-center gap-3 overflow-hidden shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all hover:shadow-[0_0_40px_rgba(255,255,255,0.4)]"
-           >
-             {isLoading ? (
-                <div className="flex items-center gap-2 font-mono text-xs animate-pulse">
-                   <div className="w-2 h-2 bg-black rounded-full"></div>
-                   CONNECTING...
-                </div>
-             ) : (
-                <>
+           {isLoading ? (
+               <motion.div
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 1 }}
+                 className="h-16 w-full flex items-center justify-center bg-white/10 border border-white/20 rounded-none text-white font-mono text-xs tracking-widest gap-3"
+               >
+                   <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                   AUTHENTICATING...
+               </motion.div>
+           ) : (
+               <motion.button
+                 whileHover={{ scale: 1.02 }}
+                 whileTap={{ scale: 0.98 }}
+                 onClick={handleGoogleLogin}
+                 className="group relative w-full bg-white text-black h-16 flex items-center justify-center gap-3 overflow-hidden shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all hover:shadow-[0_0_40px_rgba(255,255,255,0.4)]"
+               >
                   <div className="absolute inset-0 bg-black translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
                   
                   {/* Google Icon SVG */}
@@ -339,11 +345,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                     Continue with Google
                   </span>
                   <ArrowRight className="w-4 h-4 relative z-10 group-hover:translate-x-1 group-hover:text-white transition-all" />
-                </>
-             )}
-             
-             <div className="absolute top-0 left-[-100%] w-[20%] h-full bg-black/10 skew-x-12 group-hover:animate-[marquee_1s_linear_infinite]"></div>
-           </motion.button>
+                  
+                  <div className="absolute top-0 left-[-100%] w-[20%] h-full bg-black/10 skew-x-12 group-hover:animate-[marquee_1s_linear_infinite]"></div>
+               </motion.button>
+           )}
            
            <p className="text-[10px] text-white/30 text-center font-mono">
                By accessing Neurally, you agree to the <br/> Cognitive Enhancement Protocol.

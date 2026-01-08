@@ -58,7 +58,18 @@ function App() {
   // Firebase Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // CRITICAL FIX: Check if we are in the middle of a Mobile Redirect Flow
+      const isMobileAuthPending = sessionStorage.getItem('neurally_mobile_auth') === 'true';
+
       if (firebaseUser) {
+        // If mobile auth is pending, DO NOT set the user yet.
+        // Keep rendering LoginScreen so it can process getRedirectResult and Deep Link.
+        if (isMobileAuthPending) {
+            console.log("App: Mobile Auth Pending - Holding Dashboard render to allow Redirect processing.");
+            setIsLoading(false);
+            return; 
+        }
+
         // Retrieve stats from local storage if available to persist game state
         const localStatsKey = `neurally_stats_${firebaseUser.uid}`;
         const savedStats = localStorage.getItem(localStatsKey);
@@ -72,12 +83,7 @@ function App() {
             tier: 'Scholar',
             stats: stats
         };
-        
-        // Directly set user to enter the app
         setUser(appUser);
-        
-        // Cleanup mobile flag if it exists
-        sessionStorage.removeItem('neurally_mobile_auth');
       } else {
         const storedUser = localStorage.getItem('neurally_user');
         if (storedUser) {
@@ -163,6 +169,7 @@ function App() {
   };
 
   const handleLogin = (userData: User) => {
+    // This is called from LoginScreen when NOT in mobile redirect mode
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
     localStorage.setItem('neurally_user', JSON.stringify(userData));
