@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore'; 
 import { auth, db, sanitizeForFirestore } from './utils/firebase';
+import { AlertTriangle } from 'lucide-react';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -32,6 +33,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [language, setLanguage] = useState<Language>('tr');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  
+  // New Error State for Database Setup Issues
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // Default Stats Generator
   const generateDefaultStats = (): UserStats => ({
@@ -61,6 +65,7 @@ function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setSyncStatus('syncing');
+        setDbError(null);
         
         // 1. Initial User Setup (Skeleton)
         const initialUser: User = {
@@ -106,11 +111,24 @@ function App() {
                     })
                     .catch(err => {
                         console.error("Auto-create failed", err);
+                        // Check for common permission error
+                        if (err.code === 'permission-denied') {
+                            setDbError("Erişim Reddedildi: Lütfen Firebase Konsol'da 'Firestore Database' oluşturduğunuzdan ve Kuralları (Rules) test moduna aldığınızdan emin olun.");
+                        } else {
+                            setDbError(`Veritabanı Hatası: ${err.message}`);
+                        }
                         setSyncStatus('error');
                     });
             }
         }, (error) => {
             console.error("Real-time Sync Error:", error);
+            if (error.code === 'permission-denied') {
+                setDbError("İZİN HATASI: Firebase Konsol -> Firestore Database -> Rules sekmesinden kuralları 'Test Mode' olarak ayarlayın veya veritabanını oluşturun.");
+            } else if (error.code === 'unavailable') {
+                setDbError("BAĞLANTI HATASI: İnternet bağlantınızı kontrol edin veya Firebase servisi kapalı.");
+            } else {
+                setDbError(`Sync Error: ${error.message}`);
+            }
             setSyncStatus('error');
             setIsLoading(false);
         });
@@ -208,6 +226,35 @@ function App() {
     setFlashcards([]);
     setActiveView('dashboard');
   };
+
+  // --- CRITICAL ERROR SCREEN ---
+  if (dbError) {
+      return (
+          <div className="min-h-screen bg-red-50 flex items-center justify-center p-8">
+              <div className="max-w-md bg-white p-8 rounded-2xl shadow-xl border border-red-100 text-center">
+                  <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <AlertTriangle className="w-8 h-8" />
+                  </div>
+                  <h2 className="text-2xl font-serif text-red-900 mb-4">Veritabanı Bağlantı Hatası</h2>
+                  <p className="text-red-700 text-sm mb-6 leading-relaxed">
+                      {dbError}
+                  </p>
+                  <div className="bg-gray-50 p-4 rounded-lg text-left text-xs text-gray-600 space-y-2 font-mono">
+                      <p>1. Firebase Konsol'a gidin.</p>
+                      <p>2. Sol menüden <strong>Build {'>'} Firestore Database</strong> seçin.</p>
+                      <p>3. <strong>Create Database</strong> butonuna basın.</p>
+                      <p>4. Mutlaka <strong>Start in Test Mode</strong> seçeneğini işaretleyin.</p>
+                  </div>
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="mt-8 w-full py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                      Sayfayı Yenile
+                  </button>
+              </div>
+          </div>
+      )
+  }
 
   if (isLoading) return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white font-mono text-xs">
