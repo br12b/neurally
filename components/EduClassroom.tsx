@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Swords, Users, ArrowRight, Loader2, Trophy, Crown, Zap, Timer, Hash, Check, X, Shield, Info, Hand, HelpCircle, Sparkles, Brain, Copy, PenTool, Plus, Trash2, Save } from 'lucide-react';
 import { User, Language, QuizRoom, BattlePlayer, Question, Option } from '../types';
-import { db } from '../utils/firebase';
+import { db, sanitizeForFirestore } from '../utils/firebase';
 import { doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 import { createAIClient, generateFallbackQuestions } from '../utils/ai';
 
@@ -109,10 +109,6 @@ export default function QuizBattle({ language, user }: QuizBattleProps) {
                   setTimer(15);
               } else if (data.status === 'finished') {
                   setView('results');
-              }
-          } else {
-              if (view !== 'menu') {
-                  // Room closed logic
               }
           }
       }, (error) => {
@@ -236,9 +232,9 @@ export default function QuizBattle({ language, user }: QuizBattleProps) {
           if (usedSimulation) {
               setRoomData(newRoom);
           } else {
-              // Try to save to Firebase
+              // Try to save to Firebase with SANITIZATION
               try {
-                  await setDoc(doc(db, "quizRooms", code), newRoom);
+                  await setDoc(doc(db, "quizRooms", code), sanitizeForFirestore(newRoom));
               } catch (err) {
                   console.error("Firebase Create Error", err);
                   // If firebase fails, fallback to simulation mode so the user can still play

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Save, Target, ChevronRight, Share2, Database, LayoutList, Activity, Cloud, RefreshCw, Loader2, WifiOff, Edit3 } from 'lucide-react';
 import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../utils/firebase';
+import { db, sanitizeForFirestore } from '../utils/firebase';
 import { Language, User } from '../types';
 
 interface NeuroMapProps {
@@ -96,11 +96,8 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
 
   // --- 3. AUTO-SAVE MECHANISM (DEBOUNCED) ---
   useEffect(() => {
-    // 1. Kullanıcı yoksa veya Bulut Bağlantısı Henüz Kurulmadıysa ASLA KAYDETME.
-    // Bu, boş state'in dolu bulut verisini ezmesini engeller.
     if (!user || !isCloudReady) return;
     
-    // 2. Eğer değişiklik buluttan geldiyse, tekrar buluta yazma (Loop önleyici)
     if (isRemoteUpdate.current) {
         isRemoteUpdate.current = false;
         return;
@@ -114,16 +111,14 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
     saveTimeoutRef.current = setTimeout(async () => {
-        // Boş veri kaydetmeye çalışıyorsak ve setup mode'daysak, belki de silmeliyiz?
-        // Şimdilik sadece doluysa veya setup bitmişse kaydedelim.
         if (setupMode && !subject) return; 
 
         try {
-            await setDoc(doc(db, "neuralLists", user.id), {
+            await setDoc(doc(db, "neuralLists", user.id), sanitizeForFirestore({
                 subject: subject,
                 nodes: nodes,
                 lastUpdated: new Date()
-            }, { merge: true });
+            }), { merge: true });
             setStatus('synced');
         } catch (error) {
             console.error("Cloud Save Failed:", error);

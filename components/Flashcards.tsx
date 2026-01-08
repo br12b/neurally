@@ -45,13 +45,16 @@ export default function Flashcards({ cards, onAddCard, onDeleteCard }: Flashcard
 
   const handleCreate = () => {
     if(!newFront || !newBack) return;
+    
+    // FİX: undefined değeri göndermemek için koşullu obje oluşturma
     const newCard: Flashcard = {
         id: Date.now(),
         front: newFront,
         back: newBack,
         tag: newTag.toUpperCase(),
-        mnemonicImage: newImage || undefined
+        ...(newImage ? { mnemonicImage: newImage } : {}) // Sadece resim varsa ekle
     };
+    
     onAddCard(newCard);
     resetForm();
     setIsCreating(false);

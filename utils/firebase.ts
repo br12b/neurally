@@ -32,3 +32,14 @@ setPersistence(auth, browserLocalPersistence).catch((error) => {
 googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
+
+// ------------------------------------------------------------------
+// GLOBAL DATA SANITIZER
+// ------------------------------------------------------------------
+// This function removes any 'undefined' values from objects before sending to Firestore.
+// Firestore crashes if it receives 'undefined'. This converts the object to JSON and back,
+// which automatically strips undefined keys.
+export const sanitizeForFirestore = (data: any) => {
+  if (data === undefined) return null;
+  return JSON.parse(JSON.stringify(data));
+};

@@ -22,7 +22,7 @@ import { AppView, Question, User, Language, Flashcard, UserStats } from './types
 import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore'; 
-import { auth, db } from './utils/firebase';
+import { auth, db, sanitizeForFirestore } from './utils/firebase';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -98,7 +98,7 @@ function App() {
                 setIsLoading(false);
             } else {
                 // New User: Create Doc
-                setDoc(userDocRef, initialUser, { merge: true })
+                setDoc(userDocRef, sanitizeForFirestore(initialUser), { merge: true })
                     .then(() => {
                         setUser(initialUser);
                         setSyncStatus('synced');
@@ -133,7 +133,6 @@ function App() {
   const handleAddXP = async (amount: number) => {
       if (!user || !user.stats) return;
       
-      // Calculate locally first for speed
       const newXP = user.stats.currentXP + amount;
       let newLevel = user.stats.level;
       let nextXP = user.stats.nextLevelXP;
@@ -145,12 +144,11 @@ function App() {
       
       const newStats = { ...user.stats, currentXP: newXP, level: newLevel, nextLevelXP: nextXP };
       
-      // Optimistic Update
       setUser(prev => prev ? { ...prev, stats: newStats } : null);
 
       try {
           const userDocRef = doc(db, "users", user.id);
-          await updateDoc(userDocRef, { stats: newStats });
+          await updateDoc(userDocRef, { stats: sanitizeForFirestore(newStats) });
       } catch (error) {
           console.error("XP Sync Error", error);
       }
@@ -168,17 +166,16 @@ function App() {
 
     try {
         const userDocRef = doc(db, "users", user.id);
-        // Direct write to DB. The onSnapshot listener will update the UI automatically.
-        // We do NOT update local state manually to ensure "Source of Truth" is always DB.
+        
+        // FİX: Global sanitizer kullanımı. Artık veri hatası yok.
         await setDoc(userDocRef, {
-            flashcards: arrayUnion(card)
+            flashcards: arrayUnion(sanitizeForFirestore(card))
         }, { merge: true });
         
-        // Success handled by onSnapshot
-    } catch (error) {
+    } catch (error: any) {
         console.error("Flashcard Save Failed:", error);
         setSyncStatus('error');
-        alert("Bulut hatası: Kart kaydedilemedi. İnternet bağlantınızı kontrol edin.");
+        alert(`Bulut hatası: Kart kaydedilemedi. (${error.message})`);
     }
   };
 
@@ -201,7 +198,6 @@ function App() {
   };
 
   const handleManualLogin = (userData: User) => {
-    // This is only for the "Demo Mode", real login is handled by useEffect
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
   };

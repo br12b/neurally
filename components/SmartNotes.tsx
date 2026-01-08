@@ -6,7 +6,7 @@ import { createAIClient } from '../utils/ai';
 import { User } from '../types';
 import { globalAudio } from '../utils/audio';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore'; 
-import { db } from '../utils/firebase'; 
+import { db, sanitizeForFirestore } from '../utils/firebase'; 
 
 type SoundMode = 'off' | 'thock' | 'typewriter' | 'laptop';
 
@@ -24,7 +24,6 @@ interface SmartNotesProps {
 
 export default function SmartNotes({ user }: SmartNotesProps) {
   // --- 1. INITIALIZATION (CLOUD FIRST) ---
-  // No local storage init. Start empty.
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   
@@ -58,15 +57,6 @@ export default function SmartNotes({ user }: SmartNotesProps) {
               const data = docSnap.data();
               
               if (data.smartNotes && Array.isArray(data.smartNotes)) {
-                  // DIRECT OVERWRITE FROM CLOUD
-                  // We assume cloud is always truth.
-                  // Only if we are NOT currently typing (debouncing) should we overwrite?
-                  // Actually, for multi-device sync to work, we MUST overwrite.
-                  // Ideally we check timestamps, but for this fix, we trust the cloud stream.
-                  
-                  // Simple check to prevent cursor jumping if typing:
-                  // Only update if content is actually different
-                  
                   isRemoteUpdate.current = true; // Mark as remote update
                   setNotes(data.smartNotes);
                   
@@ -74,29 +64,26 @@ export default function SmartNotes({ user }: SmartNotesProps) {
                       setActiveNoteId(data.smartNotes[0].id);
                   }
               } else {
-                  // No notes in cloud yet
                   setNotes([]);
               }
           }
           
-          setIsCloudReady(true); // Now we allow edits
+          setIsCloudReady(true);
           setStatus('saved');
           
       }, (error) => {
           console.error("Sync Error:", error);
           setStatus('error');
-          setIsCloudReady(true); // Allow offline editing if sync fails
+          setIsCloudReady(true);
       });
 
       globalAudio.init();
       return () => unsubscribe();
   }, [user.id]);
 
-  // Default Note Creation (Only if cloud is ready and empty)
+  // Default Note Creation
   useEffect(() => {
       if (isCloudReady && notes.length === 0) {
-          // Don't auto-create immediately to avoid loops, wait for user action or just show empty state
-          // For UX, let's create a welcome note if absolutely nothing exists
           const welcomeNote: Note = {
               id: "welcome",
               title: "Welcome to Smart Notes",
@@ -104,18 +91,15 @@ export default function SmartNotes({ user }: SmartNotesProps) {
               images: [],
               lastModified: Date.now()
           };
-          // We trigger a save immediately to initialize the array in DB
           setNotes([welcomeNote]);
           setActiveNoteId("welcome");
       }
   }, [isCloudReady]);
 
-  // --- 3. AUTO-SAVE MECHANISM (ONE-WAY SYNC) ---
+  // --- 3. AUTO-SAVE MECHANISM (SANITIZED) ---
   useEffect(() => {
-    // BLOCKED if cloud isn't ready. This prevents overwriting cloud data with empty local state on load.
     if (!user || !isCloudReady) return;
 
-    // Prevent loop if this update came from the listener
     if (isRemoteUpdate.current) {
         isRemoteUpdate.current = false;
         return;
@@ -123,13 +107,13 @@ export default function SmartNotes({ user }: SmartNotesProps) {
 
     setStatus('syncing');
 
-    // Debounced Cloud Save
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
     saveTimeoutRef.current = setTimeout(async () => {
         try {
             const userDocRef = doc(db, "users", user.id);
-            await setDoc(userDocRef, { smartNotes: notes }, { merge: true });
+            // Global sanitizer cleans data before save
+            await setDoc(userDocRef, { smartNotes: sanitizeForFirestore(notes) }, { merge: true });
             setStatus('saved');
         } catch (error) {
             console.error("Auto-Save Failed:", error);
@@ -146,7 +130,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
 
   const updateActiveNote = (updates: Partial<Note>) => {
       if (!activeNote) return;
-      isRemoteUpdate.current = false; // User action
+      isRemoteUpdate.current = false;
       setNotes(prev => prev.map(n => n.id === activeNote.id ? { ...n, ...updates, lastModified: Date.now() } : n));
   };
 
@@ -218,7 +202,6 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       }
   };
 
-  // --- PDF HANDLING ---
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !activeNote) return;
@@ -229,14 +212,12 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       }
 
       setIsProcessingPdf(true);
-      
       try {
           const reader = new FileReader();
           reader.readAsDataURL(file);
           reader.onloadend = async () => {
               const base64Data = reader.result as string;
               const base64Content = base64Data.split(',')[1];
-
               const ai = createAIClient();
               
               const result = await ai.models.generateContent({
@@ -248,13 +229,11 @@ export default function SmartNotes({ user }: SmartNotesProps) {
               });
 
               const extractedText = result.text;
-              
               if (extractedText) {
                   const newContent = activeNote.content + `\n\n--- PDF IMPORT: ${file.name} ---\n\n` + extractedText;
                   updateActiveNote({ content: newContent });
               }
               setIsProcessingPdf(false);
-              
               if(pdfInputRef.current) pdfInputRef.current.value = "";
           };
       } catch (error) {
