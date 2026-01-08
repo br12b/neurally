@@ -61,12 +61,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         const urlParams = new URLSearchParams(window.location.search);
         const isMobile = urlParams.get('mobile') === 'true';
         
-        if (isMobile && user) {
-          // Firebase ID Token'ı al
-          const idToken = await user.getIdToken();
+        if (isMobile && result.user) {
+          // Firebase ID Token'ı al (Doğrudan result üzerinden)
+          const idToken = await result.user.getIdToken();
           
           // Mobil uygulamaya geri dön (deep link)
-          // Bu şema (neurally.app://) mobil uygulamada tanımlı olmalıdır.
           window.location.href = `neurally.app://callback?token=${idToken}`;
           
           // İşlemi durdur (onLogin çağırma, zaten mobil app halleder)
