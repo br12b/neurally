@@ -21,8 +21,8 @@ import BackgroundFlow from './components/BackgroundFlow';
 import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'; // Firestore imports
-import { auth, db } from './utils/firebase'; // Added db import
+import { doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore'; // onSnapshot eklendi
+import { auth, db } from './utils/firebase';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -53,74 +53,103 @@ function App() {
       ]
   });
 
-  // --- FIREBASE AUTH & DATABASE LISTENER ---
+  // --- FIREBASE AUTH & REAL-TIME DATABASE LISTENER ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-            // 1. Check if user exists in Firestore Database
-            const userDocRef = doc(db, "users", firebaseUser.uid);
-            const userSnap = await getDoc(userDocRef);
+    let unsubscribeFirestore: () => void;
 
-            if (userSnap.exists()) {
-                // 2a. User exists in DB -> Load their data
-                const userData = userSnap.data() as User;
-                // Merge with latest auth info (e.g. if photo changed)
-                const updatedUser = {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Kullanıcı giriş yaptı, veritabanını dinlemeye başla
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+
+        // onSnapshot: Veritabanındaki değişiklikleri anlık dinler. 
+        // İnternet yoksa önbellekten (cache) okur, yani eski veriler asla kaybolmaz.
+        unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                // 1. Veri var: Kullanıcıyı güncelle
+                const userData = docSnap.data() as User;
+                
+                // Auth verisi ile DB verisini birleştir (Avatar güncellemeleri için)
+                setUser({
                     ...userData,
                     email: firebaseUser.email || userData.email,
                     avatar: firebaseUser.photoURL || userData.avatar
-                };
-                setUser(updatedUser);
+                });
             } else {
-                // 2b. New User -> Create record in DB
+                // 2. Veri yok (Yeni Kullanıcı): Veritabanında oluştur
+                const fallbackName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Scholar";
                 const newUser: User = {
                     id: firebaseUser.uid,
-                    name: firebaseUser.displayName || (firebaseUser.email?.split('@')[0] || "Scholar"),
+                    name: fallbackName,
                     email: firebaseUser.email || "No Email",
-                    avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.email || 'User'}&background=000000&color=fff`,
+                    avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${fallbackName}&background=000000&color=fff`,
                     tier: 'Free',
                     stats: generateDefaultStats()
                 };
                 
-                // Write to Firestore
+                // Veritabanına yaz (Bu işlem de listener'ı tetikler ve yukarıdaki if bloğuna girer)
                 await setDoc(userDocRef, newUser);
                 setUser(newUser);
             }
-        } catch (error) {
-            console.error("Database Sync Error:", error);
-            // Fallback for offline/demo if DB fails
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Real-time Sync Error:", error);
+            // Hata durumunda (örn: tamamen internet yok ve cache temizlenmiş)
+            // Yine de Auth bilgisinden kullanıcıyı oluşturmaya çalış
+            const fallbackName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Offline Scholar";
             setUser({
                 id: firebaseUser.uid,
-                name: firebaseUser.displayName || "Offline User",
-                email: firebaseUser.email || "",
-                avatar: firebaseUser.photoURL || "",
+                name: fallbackName,
+                email: firebaseUser.email || "No Email",
+                avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${fallbackName}&background=000000&color=fff`,
                 tier: 'Free',
                 stats: generateDefaultStats()
             });
-        }
+            setIsLoading(false);
+        });
+
       } else {
-        // Not logged in
+        // Çıkış yapıldı
         setUser(null);
+        setIsLoading(false);
+        if (unsubscribeFirestore) unsubscribeFirestore();
       }
-      setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+        unsubscribeAuth();
+        if (unsubscribeFirestore) unsubscribeFirestore();
+    };
   }, []);
 
-  // --- REAL-TIME XP SYNC ---
-  // When XP changes locally, sync it to Firestore debounced
-  useEffect(() => {
-      if (user && user.id) {
-          const timeout = setTimeout(() => {
-              const userDocRef = doc(db, "users", user.id);
-              // We only update stats to save bandwidth, not the whole user object constantly
-              updateDoc(userDocRef, { stats: user.stats }).catch(e => console.log("Sync skip", e));
-          }, 2000); // 2 second debounce
-          return () => clearTimeout(timeout);
+  // --- XP GÜNCELLEME ---
+  // Kullanıcı XP kazandığında sadece 'stats' alanını güncelle (Tüm user objesini değil)
+  const handleAddXP = async (amount: number) => {
+      if (!user || !user.stats) return;
+      
+      const newXP = user.stats.currentXP + amount;
+      let newLevel = user.stats.level;
+      let nextXP = user.stats.nextLevelXP;
+      
+      // Level Up Mantığı
+      if (newXP >= nextXP) {
+          newLevel += 1;
+          nextXP = Math.floor(nextXP * 1.5);
       }
-  }, [user]);
+      
+      const newStats = { ...user.stats, currentXP: newXP, level: newLevel, nextLevelXP: nextXP };
+      
+      // 1. Önce UI'ı güncelle (Hız hissi için)
+      setUser(prev => prev ? { ...prev, stats: newStats } : null);
+
+      // 2. Arka planda DB'ye yaz
+      try {
+          const userDocRef = doc(db, "users", user.id);
+          await updateDoc(userDocRef, { stats: newStats });
+      } catch (error) {
+          console.error("XP Sync Error", error);
+      }
+  };
 
   // Data Handlers
   const handleQuestionsGenerated = (newQuestions: Question[]) => {
@@ -132,26 +161,7 @@ function App() {
     setFlashcards(prev => [card, ...prev]);
   };
 
-  const handleAddXP = (amount: number) => {
-      if (!user || !user.stats) return;
-      const newXP = user.stats.currentXP + amount;
-      let newLevel = user.stats.level;
-      let nextXP = user.stats.nextLevelXP;
-      
-      // Level Up Logic
-      if (newXP >= nextXP) {
-          newLevel += 1;
-          nextXP = Math.floor(nextXP * 1.5);
-      }
-      
-      const updatedUser = {
-          ...user,
-          stats: { ...user.stats, currentXP: newXP, level: newLevel, nextLevelXP: nextXP }
-      };
-      setUser(updatedUser);
-  };
-
-  // Manual Login Handler (Used by Demo Button)
+  // Manual Login Handler (Demo Modu İçin)
   const handleManualLogin = (userData: User) => {
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
