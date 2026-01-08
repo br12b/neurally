@@ -20,31 +20,25 @@ import LanguagePath from './components/LanguagePath';
 import BackgroundFlow from './components/BackgroundFlow'; 
 import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { onAuthStateChanged, signOut, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
-import { auth } from './utils/firebase';
-import { Smartphone, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'; // Firestore imports
+import { auth, db } from './utils/firebase'; // Added db import
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [activeView, setActiveView] = useState<AppView>('dashboard');
   const [questions, setQuestions] = useState<Question[]>([]);
-  
-  // Flashcards state
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
-
   const [isLoading, setIsLoading] = useState(true);
   const [language, setLanguage] = useState<Language>('tr');
 
-  // --- MOBILE BRIDGE STATE ---
-  const [mobileDeepLink, setMobileDeepLink] = useState<string | null>(null);
-
-  // Helper to generate default stats for new users
+  // Default Stats Generator
   const generateDefaultStats = (): UserStats => ({
       level: 1,
-      currentXP: 120,
+      currentXP: 0,
       nextLevelXP: 500,
-      streakDays: 3,
-      totalFocusMinutes: 45,
+      streakDays: 1,
+      totalFocusMinutes: 0,
       rankTitle: "Neural Initiate",
       badges: [
           { id: 'b1', name: 'First Link', description: 'Created first account', icon: 'zap', isLocked: false, unlockedAt: new Date().toISOString() },
@@ -54,112 +48,81 @@ function App() {
       ],
       dailyQuests: [
           { id: 'q1', title: 'Complete 1 Quiz', target: 1, current: 0, xpReward: 50, completed: false, type: 'quiz' },
-          { id: 'q2', title: 'Review 10 Flashcards', target: 10, current: 4, xpReward: 30, completed: false, type: 'flashcard' },
-          { id: 'q3', title: '25m Focus Session', target: 25, current: 15, xpReward: 100, completed: false, type: 'focus' },
+          { id: 'q2', title: 'Review 10 Flashcards', target: 10, current: 0, xpReward: 30, completed: false, type: 'flashcard' },
+          { id: 'q3', title: '25m Focus Session', target: 25, current: 0, xpReward: 100, completed: false, type: 'focus' },
       ]
   });
 
-  // --- INITIALIZATION & AUTH HANDLER ---
+  // --- FIREBASE AUTH & DATABASE LISTENER ---
   useEffect(() => {
-    
-    const initAuth = async () => {
-        // 1. Check for Redirect Result (Mobile Bridge Check)
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
         try {
-            const result = await getRedirectResult(auth);
-            if (result) {
-                // If we have a redirect result, we check if this was a mobile intent
-                const isMobileSession = sessionStorage.getItem('neurally_mobile_auth') === 'true';
-                
-                if (isMobileSession) {
-                    console.log("Mobile Bridge: Google Credentials Captured");
-                    const credential = GoogleAuthProvider.credentialFromResult(result);
-                    const googleIdToken = credential?.idToken;
-                    const googleAccessToken = credential?.accessToken;
+            // 1. Check if user exists in Firestore Database
+            const userDocRef = doc(db, "users", firebaseUser.uid);
+            const userSnap = await getDoc(userDocRef);
 
-                    if (googleIdToken) {
-                        // Construct Deep Link
-                        const deepLink = `neurally.app://google/callback?id_token=${googleIdToken}&access_token=${googleAccessToken}`;
-                        setMobileDeepLink(deepLink);
-                        
-                        // Attempt auto-redirect
-                        window.location.href = deepLink;
-                        
-                        setIsLoading(false);
-                        return; // HALT HERE. Do not load Dashboard.
-                    }
-                }
+            if (userSnap.exists()) {
+                // 2a. User exists in DB -> Load their data
+                const userData = userSnap.data() as User;
+                // Merge with latest auth info (e.g. if photo changed)
+                const updatedUser = {
+                    ...userData,
+                    email: firebaseUser.email || userData.email,
+                    avatar: firebaseUser.photoURL || userData.avatar
+                };
+                setUser(updatedUser);
+            } else {
+                // 2b. New User -> Create record in DB
+                const newUser: User = {
+                    id: firebaseUser.uid,
+                    name: firebaseUser.displayName || (firebaseUser.email?.split('@')[0] || "Scholar"),
+                    email: firebaseUser.email || "No Email",
+                    avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.email || 'User'}&background=000000&color=fff`,
+                    tier: 'Free',
+                    stats: generateDefaultStats()
+                };
+                
+                // Write to Firestore
+                await setDoc(userDocRef, newUser);
+                setUser(newUser);
             }
         } catch (error) {
-            console.error("Redirect Error:", error);
+            console.error("Database Sync Error:", error);
+            // Fallback for offline/demo if DB fails
+            setUser({
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || "Offline User",
+                email: firebaseUser.email || "",
+                avatar: firebaseUser.photoURL || "",
+                tier: 'Free',
+                stats: generateDefaultStats()
+            });
         }
+      } else {
+        // Not logged in
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
 
-        // 2. Standard Auth Listener (Desktop / Web Fallback)
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            // If we are showing the Mobile Bridge, ignore standard auth changes to prevent flickering
-            if (mobileDeepLink) return;
+    return () => unsubscribe();
+  }, []);
 
-            if (firebaseUser) {
-                const localStatsKey = `neurally_stats_${firebaseUser.uid}`;
-                const savedStats = localStorage.getItem(localStatsKey);
-                const stats = savedStats ? JSON.parse(savedStats) : generateDefaultStats();
-
-                const appUser: User = {
-                    id: firebaseUser.uid,
-                    name: firebaseUser.displayName || "Anonymous Scholar",
-                    email: firebaseUser.email || "No Email",
-                    avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'U'}&background=000000&color=fff`,
-                    tier: 'Scholar',
-                    stats: stats
-                };
-                setUser(appUser);
-            } else {
-                // Check Local Storage Fallback
-                const storedUser = localStorage.getItem('neurally_user');
-                if (storedUser) {
-                    const parsedUser = JSON.parse(storedUser);
-                    if (!parsedUser.stats) parsedUser.stats = generateDefaultStats();
-                    setUser(parsedUser);
-                } else {
-                    setUser(null);
-                    setFlashcards([]);
-                }
-            }
-            setIsLoading(false);
-        });
-
-        return unsubscribe;
-    };
-
-    initAuth();
-  }, [mobileDeepLink]); // Re-run only if deep link state changes (rare)
-
-  // Sync Stats to LocalStorage
+  // --- REAL-TIME XP SYNC ---
+  // When XP changes locally, sync it to Firestore debounced
   useEffect(() => {
-      if (user && user.stats) {
-          const localStatsKey = `neurally_stats_${user.id}`;
-          localStorage.setItem(localStatsKey, JSON.stringify(user.stats));
-          localStorage.setItem('neurally_user', JSON.stringify(user));
+      if (user && user.id) {
+          const timeout = setTimeout(() => {
+              const userDocRef = doc(db, "users", user.id);
+              // We only update stats to save bandwidth, not the whole user object constantly
+              updateDoc(userDocRef, { stats: user.stats }).catch(e => console.log("Sync skip", e));
+          }, 2000); // 2 second debounce
+          return () => clearTimeout(timeout);
       }
   }, [user]);
 
-  // Flashcards Sync
-  useEffect(() => {
-    if (user) {
-        const key = `neurally_flashcards_${user.id}`;
-        const saved = localStorage.getItem(key);
-        if (saved) {
-            try { setFlashcards(JSON.parse(saved)); } catch (e) {}
-        } else { setFlashcards([]); }
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (user && flashcards.length > 0) {
-        const key = `neurally_flashcards_${user.id}`;
-        localStorage.setItem(key, JSON.stringify(flashcards));
-    }
-  }, [flashcards, user]);
-
+  // Data Handlers
   const handleQuestionsGenerated = (newQuestions: Question[]) => {
     setQuestions(newQuestions);
     setActiveView('quiz');
@@ -174,10 +137,13 @@ function App() {
       const newXP = user.stats.currentXP + amount;
       let newLevel = user.stats.level;
       let nextXP = user.stats.nextLevelXP;
+      
+      // Level Up Logic
       if (newXP >= nextXP) {
           newLevel += 1;
           nextXP = Math.floor(nextXP * 1.5);
       }
+      
       const updatedUser = {
           ...user,
           stats: { ...user.stats, currentXP: newXP, level: newLevel, nextLevelXP: nextXP }
@@ -185,57 +151,29 @@ function App() {
       setUser(updatedUser);
   };
 
-  const handleLogin = (userData: User) => {
+  // Manual Login Handler (Used by Demo Button)
+  const handleManualLogin = (userData: User) => {
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
-    localStorage.setItem('neurally_user', JSON.stringify(userData));
   };
 
   const handleLogout = async () => {
     try { await signOut(auth); } catch (error) {}
     setUser(null);
-    localStorage.removeItem('neurally_user');
     setActiveView('dashboard');
   };
 
-  // --- MOBILE BRIDGE VIEW ---
-  // This renders only when we successfully got a token for mobile redirect
-  if (mobileDeepLink) {
-      return (
-          <div className="min-h-screen w-full bg-black text-white flex flex-col items-center justify-center p-8 text-center font-sans">
-              <div className="w-24 h-24 bg-green-500/10 rounded-full flex items-center justify-center mb-8 border border-green-500/30">
-                  <CheckCircle2 className="w-10 h-10 text-green-500" />
-              </div>
-              <h1 className="text-3xl font-serif mb-4">Giriş Başarılı</h1>
-              <p className="text-gray-400 mb-12 max-w-xs mx-auto text-sm leading-relaxed">
-                  Hesabınız doğrulandı. Mobil uygulamaya dönmek için aşağıdaki butona tıklayın.
-              </p>
-              
-              <a 
-                href={mobileDeepLink}
-                className="w-full max-w-sm py-4 bg-white text-black font-bold uppercase tracking-widest rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3"
-              >
-                  <Smartphone className="w-5 h-5" /> Uygulamayı Aç
-              </a>
-              
-              <button 
-                onClick={() => {
-                    // Fallback to web dashboard if deep link fails
-                    setMobileDeepLink(null); 
-                    sessionStorage.removeItem('neurally_mobile_auth');
-                }}
-                className="mt-6 text-xs text-gray-500 hover:text-white underline decoration-gray-700 underline-offset-4"
-              >
-                  Tarayıcıda Devam Et
-              </button>
+  if (isLoading) return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white font-mono text-xs">
+          <div className="flex flex-col items-center gap-4">
+              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              <span>CONNECTING TO NEURAL DATABASE...</span>
           </div>
-      );
-  }
-
-  if (isLoading) return null;
+      </div>
+  );
 
   if (!user) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleManualLogin} />;
   }
 
   const isImmersiveView = activeView === 'speedrun';
