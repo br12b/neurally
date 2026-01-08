@@ -8,9 +8,10 @@ import { createAIClient } from '../utils/ai';
 interface FlashcardsProps {
   cards: Flashcard[];
   onAddCard: (card: Flashcard) => void;
+  onDeleteCard?: (id: number) => void; // Added Delete Prop
 }
 
-export default function Flashcards({ cards, onAddCard }: FlashcardsProps) {
+export default function Flashcards({ cards, onAddCard, onDeleteCard }: FlashcardsProps) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -56,6 +57,17 @@ export default function Flashcards({ cards, onAddCard }: FlashcardsProps) {
     setIsCreating(false);
     // Reset filter to see new card if possible, or stay
     if (newTag === selectedTag) setCurrentIndex(filteredCards.length); 
+  };
+
+  const handleDeleteCurrent = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (currentCard && onDeleteCard) {
+          if (confirm("Kart silinsin mi? / Delete card?")) {
+              onDeleteCard(currentCard.id);
+              setIsFlipped(false);
+              setCurrentIndex(0); // Reset index to avoid out of bounds
+          }
+      }
   };
 
   const resetForm = () => {
@@ -373,6 +385,15 @@ export default function Flashcards({ cards, onAddCard }: FlashcardsProps) {
                         <span className="font-mono text-xs font-bold border border-black px-2 py-1 rounded">
                             {currentCard.tag}
                         </span>
+                        {onDeleteCard && (
+                            <button 
+                                onClick={handleDeleteCurrent}
+                                className="p-1 hover:bg-red-50 text-gray-300 hover:text-red-500 rounded transition-colors z-20"
+                                title="Delete Card"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        )}
                       </div>
                       
                       <h3 className="font-serif text-3xl md:text-5xl text-black leading-tight select-none z-10">

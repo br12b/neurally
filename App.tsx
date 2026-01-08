@@ -21,7 +21,7 @@ import BackgroundFlow from './components/BackgroundFlow';
 import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore'; 
+import { doc, setDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore'; 
 import { auth, db } from './utils/firebase';
 
 function App() {
@@ -72,18 +72,25 @@ function App() {
         setUser(optimisticUser);
         setIsLoading(false);
 
-        // 2. BACKGROUND SYNC
+        // 2. BACKGROUND SYNC (User Data & Flashcards)
         const userDocRef = doc(db, "users", firebaseUser.uid);
 
         unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
-                const dbData = docSnap.data() as User;
+                const dbData = docSnap.data();
+                
+                // Sync User Stats
                 setUser((prev) => ({
                     ...prev!,
                     ...dbData, 
                     email: firebaseUser.email || dbData.email,
                     avatar: firebaseUser.photoURL || dbData.avatar
                 }));
+
+                // Sync Flashcards
+                if (dbData.flashcards && Array.isArray(dbData.flashcards)) {
+                    setFlashcards(dbData.flashcards);
+                }
             } else {
                 setDoc(userDocRef, optimisticUser).catch(err => console.error("Auto-create failed", err));
             }
@@ -131,8 +138,43 @@ function App() {
     setActiveView('quiz');
   };
 
-  const handleAddFlashcard = (card: Flashcard) => {
+  // --- FLASHCARD CLOUD SYNC ---
+  const handleAddFlashcard = async (card: Flashcard) => {
+    // 1. Optimistic Update (Instant UI)
     setFlashcards(prev => [card, ...prev]);
+
+    // 2. Background Sync
+    if (user) {
+        try {
+            const userDocRef = doc(db, "users", user.id);
+            await updateDoc(userDocRef, {
+                flashcards: arrayUnion(card)
+            });
+        } catch (error) {
+            console.error("Flashcard Save Failed:", error);
+            // Optionally revert state here if strict consistency needed
+        }
+    }
+  };
+
+  const handleDeleteFlashcard = async (cardId: number) => {
+      const cardToDelete = flashcards.find(c => c.id === cardId);
+      if (!cardToDelete) return;
+
+      // 1. Optimistic Update
+      setFlashcards(prev => prev.filter(c => c.id !== cardId));
+
+      // 2. Background Sync
+      if (user) {
+          try {
+              const userDocRef = doc(db, "users", user.id);
+              await updateDoc(userDocRef, {
+                  flashcards: arrayRemove(cardToDelete)
+              });
+          } catch (error) {
+              console.error("Flashcard Delete Failed:", error);
+          }
+      }
   };
 
   const handleManualLogin = (userData: User) => {
@@ -202,7 +244,7 @@ function App() {
               {activeView === 'neurallist' && <NeuroMap language={language} user={user} />}
               {activeView === 'quiz' && <NeurallyQuiz key={questions[0]?.id || 'quiz'} questions={questions} onRedirectToDashboard={() => setActiveView('dashboard')} onAddToFlashcards={handleAddFlashcard} />}
               {activeView === 'speedrun' && <SpeedRun language={language} user={user} onExit={() => setActiveView('dashboard')} />}
-              {activeView === 'flashcards' && <Flashcards cards={flashcards} onAddCard={handleAddFlashcard} />}
+              {activeView === 'flashcards' && <Flashcards cards={flashcards} onAddCard={handleAddFlashcard} onDeleteCard={handleDeleteFlashcard} />}
               {activeView === 'schedule' && <Schedule language={language} user={user} />}
               {activeView === 'keypoints' && <KeyPoints language={language} />}
               {activeView === 'podcast' && <NeuralPodcast language={language} />}
