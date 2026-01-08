@@ -59,10 +59,6 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Not: Mobil yönlendirme işlemini LoginScreen.tsx içindeki getRedirectResult ile yapıyoruz.
-        // Çünkü App.tsx'teki firebaseUser.getIdToken() Firebase Token'ı verir, 
-        // ancak mobil uygulama Google ID Token'ına ihtiyaç duyabilir.
-
         // Retrieve stats from local storage if available to persist game state
         const localStatsKey = `neurally_stats_${firebaseUser.uid}`;
         const savedStats = localStorage.getItem(localStatsKey);
@@ -76,12 +72,16 @@ function App() {
             tier: 'Scholar',
             stats: stats
         };
+        
+        // Directly set user to enter the app
         setUser(appUser);
+        
+        // Cleanup mobile flag if it exists
+        sessionStorage.removeItem('neurally_mobile_auth');
       } else {
         const storedUser = localStorage.getItem('neurally_user');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
-          // Ensure stats exist even on stored user
           if (!parsedUser.stats) parsedUser.stats = generateDefaultStats();
           setUser(parsedUser);
         } else {
@@ -148,7 +148,6 @@ function App() {
       if (newXP >= nextXP) {
           newLevel += 1;
           nextXP = Math.floor(nextXP * 1.5);
-          // Optional: Trigger Level Up Modal here
       }
 
       const updatedUser = {
@@ -164,7 +163,6 @@ function App() {
   };
 
   const handleLogin = (userData: User) => {
-    // Add stats if missing
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
     localStorage.setItem('neurally_user', JSON.stringify(userData));

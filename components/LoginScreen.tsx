@@ -41,35 +41,17 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
   };
 
-  // --- REDIRECT RESULT HANDLER (CRITICAL FOR MOBILE) ---
+  // --- REDIRECT RESULT HANDLER ---
   useEffect(() => {
       getRedirectResult(auth)
-        .then(async (result) => {
+        .then((result) => {
             if (result) {
-                // Check if we are in mobile context
-                const isMobileSession = sessionStorage.getItem('neurally_mobile_auth') === 'true';
+                // Successfully returned from Google Redirect
+                // We do NOT need to manually redirect to a deep link here.
+                // Firebase keeps the session state, so App.tsx's onAuthStateChanged
+                // will fire and log the user in automatically.
+                console.log("Redirect login successful");
                 
-                if (isMobileSession) {
-                    // CRITICAL: Extract Google ID Token from Credential
-                    // Mobil uygulamalar genellikle signInWithCredential için Google ID Token bekler.
-                    // Firebase User Token (result.user.getIdToken()) farklıdır ve mobil tarafta hata verebilir.
-                    const credential = GoogleAuthProvider.credentialFromResult(result);
-                    const googleIdToken = credential?.idToken;
-                    
-                    if (googleIdToken) {
-                        sessionStorage.removeItem('neurally_mobile_auth');
-                        window.location.href = `neurally.app://callback?token=${googleIdToken}`;
-                        return;
-                    } else {
-                        // Fallback: Google Token yoksa Firebase Token dene (Nadir durum)
-                        const firebaseToken = await result.user.getIdToken();
-                        sessionStorage.removeItem('neurally_mobile_auth');
-                        window.location.href = `neurally.app://callback?token=${firebaseToken}`;
-                        return;
-                    }
-                }
-
-                // Desktop Flow (Redirect completed)
                 const user = result.user;
                 const appUser: User = {
                     id: user.uid,
@@ -83,9 +65,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         })
         .catch((error) => {
           console.error("Redirect Auth Error:", error);
-          setErrorMsg(`Yönlendirme Giriş Hatası: ${error.message}`);
+          setErrorMsg(`Giriş Hatası: ${error.message}`);
           setIsLoading(false);
-          sessionStorage.removeItem('neurally_mobile_auth');
       });
   }, []);
 
@@ -101,7 +82,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
 
     try {
-        // --- ROBUST MOBILE DETECTION ---
+        // --- MOBILE DETECTION ---
         const urlParams = new URLSearchParams(window.location.search);
         const isMobileParam = urlParams.get('mobile') === 'true';
         const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -110,10 +91,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
         if (isMobile) {
             console.log("Mobile environment detected. Using Redirect flow.");
-            // Set flag for return handling
-            sessionStorage.setItem('neurally_mobile_auth', 'true'); 
             await signInWithRedirect(auth, googleProvider);
-            // Function stops here as page redirects
             return;
         }
         // -----------------------------------------------
