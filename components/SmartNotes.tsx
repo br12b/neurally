@@ -1,9 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Save, Type, Highlighter, List, Quote, Terminal, Maximize2, Minimize2, Check, Keyboard, Volume2, VolumeX, Laptop, Download, FileText, Image as ImageIcon, X, Trash2, Plus, FileUp, Loader2, ChevronRight, Search } from 'lucide-react';
+import { Sparkles, Save, Type, Highlighter, List, Quote, Terminal, Maximize2, Minimize2, Check, Keyboard, Volume2, VolumeX, Laptop, Download, FileText, Image as ImageIcon, X, Trash2, Plus, FileUp, Loader2, ChevronRight, Search, Cloud, RefreshCw, Menu } from 'lucide-react';
 import { createAIClient } from '../utils/ai';
 import { User } from '../types';
 import { globalAudio } from '../utils/audio';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore'; 
+import { db } from '../utils/firebase'; 
 
 type SoundMode = 'off' | 'thock' | 'typewriter' | 'laptop';
 
@@ -24,9 +27,10 @@ export default function SmartNotes({ user }: SmartNotesProps) {
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
-  const [lastSaved, setLastSaved] = useState("Just now");
+  const [lastSaved, setLastSaved] = useState("Synced");
   const [zenMode, setZenMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile Drawer State
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,30 +39,34 @@ export default function SmartNotes({ user }: SmartNotesProps) {
   // Sound Config
   const [soundMode, setSoundMode] = useState<SoundMode>('thock'); 
 
-  // --- INITIALIZATION ---
+  // --- 1. REAL-TIME CLOUD SYNC (LOAD) ---
   useEffect(() => {
       if (!user) return;
-      const key = `neurally_smart_notes_${user.id}`;
-      const savedData = localStorage.getItem(key);
+
+      const userDocRef = doc(db, "users", user.id);
       
-      if (savedData) {
-          try {
-              const parsedNotes = JSON.parse(savedData);
-              if (Array.isArray(parsedNotes) && parsedNotes.length > 0) {
-                  setNotes(parsedNotes);
-                  setActiveNoteId(parsedNotes[0].id);
-              } else {
+      const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (data.smartNotes && Array.isArray(data.smartNotes) && data.smartNotes.length > 0) {
+                  setNotes(prev => {
+                      return data.smartNotes;
+                  });
+
+                  setActiveNoteId(prev => prev ? prev : data.smartNotes[0].id);
+              } else if (notes.length === 0) {
                   createDefaultNote();
               }
-          } catch (e) {
-              console.error("Failed to parse notes", e);
+          } else {
               createDefaultNote();
           }
-      } else {
-          createDefaultNote();
-      }
+      }, (error) => {
+          console.error("Sync Error:", error);
+      });
+
       globalAudio.init();
-  }, [user]);
+      return () => unsubscribe();
+  }, [user.id]);
 
   const createDefaultNote = () => {
       const newNote: Note = {
@@ -72,19 +80,24 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       setActiveNoteId(newNote.id);
   };
 
-  // --- AUTO SAVE ---
+  // --- 2. REAL-TIME CLOUD SYNC (SAVE) ---
   useEffect(() => {
     if (notes.length === 0 || !user) return;
     
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
         setIsSaving(true);
-        const key = `neurally_smart_notes_${user.id}`;
-        setTimeout(() => {
-            localStorage.setItem(key, JSON.stringify(notes));
+        try {
+            const userDocRef = doc(db, "users", user.id);
+            await setDoc(userDocRef, { smartNotes: notes }, { merge: true });
             setLastSaved(new Date().toLocaleTimeString());
+        } catch (error) {
+            console.error("Save failed:", error);
+            setLastSaved("Error");
+        } finally {
             setIsSaving(false);
-        }, 600);
+        }
     }, 2000); 
+
     return () => clearTimeout(timer);
   }, [notes, user]);
 
@@ -106,6 +119,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       };
       setNotes([newNote, ...notes]);
       setActiveNoteId(newNote.id);
+      setIsMobileMenuOpen(false); // Close mobile drawer
   };
 
   const deleteNote = (id: string, e: React.MouseEvent) => {
@@ -166,7 +180,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
       const file = e.target.files?.[0];
       if (!file || !activeNote) return;
 
-      if (file.size > 20 * 1024 * 1024) { // 20MB limit for Gemini
+      if (file.size > 20 * 1024 * 1024) { 
           alert("File too large. Please upload PDF under 20MB.");
           return;
       }
@@ -178,10 +192,8 @@ export default function SmartNotes({ user }: SmartNotesProps) {
           reader.readAsDataURL(file);
           reader.onloadend = async () => {
               const base64Data = reader.result as string;
-              // Remove data URL prefix (e.g., "data:application/pdf;base64,")
               const base64Content = base64Data.split(',')[1];
 
-              // Use Centralized Client
               const ai = createAIClient();
               
               const result = await ai.models.generateContent({
@@ -205,7 +217,6 @@ export default function SmartNotes({ user }: SmartNotesProps) {
               }
               setIsProcessingPdf(false);
               
-              // Reset input
               if(pdfInputRef.current) pdfInputRef.current.value = "";
           };
       } catch (error) {
@@ -241,12 +252,37 @@ export default function SmartNotes({ user }: SmartNotesProps) {
 
   const filteredNotes = notes.filter(n => n.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
+  // NOTE LIST RENDERER (Reusable)
+  const NoteList = () => (
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+         {filteredNotes.map(note => (
+             <button 
+                key={note.id}
+                onClick={() => { setActiveNoteId(note.id); setIsMobileMenuOpen(false); }}
+                className={`w-full text-left p-3 rounded-xl transition-all group relative ${activeNoteId === note.id ? 'bg-black text-white shadow-md' : 'hover:bg-gray-50 text-gray-600'}`}
+             >
+                 <h4 className={`font-medium text-sm truncate pr-6 ${activeNoteId === note.id ? 'text-white' : 'text-gray-900'}`}>{note.title || "Untitled"}</h4>
+                 <p className={`text-[10px] truncate mt-1 ${activeNoteId === note.id ? 'text-gray-400' : 'text-gray-400'}`}>
+                     {new Date(note.lastModified).toLocaleDateString()}
+                 </p>
+                 
+                 <div 
+                    onClick={(e) => deleteNote(note.id, e)}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity ${activeNoteId === note.id ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-200 text-gray-400'}`}
+                 >
+                     <Trash2 className="w-3 h-3" />
+                 </div>
+             </button>
+         ))}
+      </div>
+  );
+
   if (!activeNote) return null;
 
   return (
-    <div className={`transition-all duration-500 ${zenMode ? 'fixed inset-0 z-[100] bg-white' : 'h-full max-w-[1800px] mx-auto p-6 lg:p-8 flex gap-6'}`}>
+    <div className={`transition-all duration-500 h-full flex gap-6 ${zenMode ? 'fixed inset-0 z-[100] bg-white' : 'p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto'}`}>
       
-      {/* SIDEBAR: NOTE LIST (Hidden in Zen) */}
+      {/* SIDEBAR: DESKTOP */}
       {!zenMode && (
           <div className="hidden lg:flex flex-col w-64 bg-white rounded-[24px] border border-[#E7E5E4] overflow-hidden shadow-sm shrink-0">
              <div className="p-4 border-b border-[#F0F0EB] bg-[#FDFBF7]">
@@ -259,91 +295,110 @@ export default function SmartNotes({ user }: SmartNotesProps) {
                     <input 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Search notes..." 
+                        placeholder="Search..." 
                         className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-8 pr-2 text-xs focus:border-black outline-none" 
                     />
                  </div>
              </div>
-             <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                 {filteredNotes.map(note => (
-                     <button 
-                        key={note.id}
-                        onClick={() => setActiveNoteId(note.id)}
-                        className={`w-full text-left p-3 rounded-xl transition-all group relative ${activeNoteId === note.id ? 'bg-black text-white shadow-md' : 'hover:bg-gray-50 text-gray-600'}`}
-                     >
-                         <h4 className={`font-medium text-sm truncate pr-6 ${activeNoteId === note.id ? 'text-white' : 'text-gray-900'}`}>{note.title || "Untitled"}</h4>
-                         <p className={`text-[10px] truncate mt-1 ${activeNoteId === note.id ? 'text-gray-400' : 'text-gray-400'}`}>
-                             {new Date(note.lastModified).toLocaleDateString()}
-                         </p>
-                         
-                         {/* Delete Button (Hover) */}
-                         <div 
-                            onClick={(e) => deleteNote(note.id, e)}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity ${activeNoteId === note.id ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-200 text-gray-400'}`}
-                         >
-                             <Trash2 className="w-3 h-3" />
-                         </div>
-                     </button>
-                 ))}
-             </div>
+             <NoteList />
           </div>
       )}
 
+      {/* MOBILE DRAWER */}
+      <AnimatePresence>
+          {isMobileMenuOpen && (
+              <>
+                <motion.div 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="fixed inset-0 bg-black/50 z-[110] lg:hidden"
+                />
+                <motion.div 
+                    initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="fixed top-0 left-0 h-full w-[80%] max-w-sm bg-white z-[120] lg:hidden flex flex-col shadow-2xl"
+                >
+                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-[#FDFBF7]">
+                        <h3 className="font-serif text-xl font-bold">Notebooks</h3>
+                        <button onClick={createNewNote} className="p-2 bg-black text-white rounded-lg"><Plus className="w-4 h-4" /></button>
+                    </div>
+                    <div className="p-4">
+                        <div className="relative mb-4">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Search notes..." 
+                                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm focus:border-black outline-none" 
+                            />
+                        </div>
+                        <NoteList />
+                    </div>
+                </motion.div>
+              </>
+          )}
+      </AnimatePresence>
+
       {/* MAIN EDITOR AREA */}
-      <div className={`flex-1 flex flex-col h-full bg-white ${zenMode ? '' : 'rounded-[32px] shadow-[0_2px_24px_rgba(0,0,0,0.04)] border border-[#E7E5E4]'} overflow-hidden relative transition-all`}>
+      <div className={`flex-1 flex flex-col h-full bg-white ${zenMode ? '' : 'rounded-[24px] md:rounded-[32px] shadow-[0_2px_24px_rgba(0,0,0,0.04)] border border-[#E7E5E4]'} overflow-hidden relative transition-all`}>
         
         {/* Toolbar */}
-        <div className={`h-16 border-b border-[#F0F0EB] flex items-center justify-between px-8 bg-white/80 backdrop-blur-sm z-30 sticky top-0 transition-all ${zenMode ? 'py-8 h-24' : ''}`}>
-           <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-ink-300 uppercase tracking-widest mr-4 hidden sm:inline">Editor</span>
+        <div className={`h-16 border-b border-[#F0F0EB] flex items-center justify-between px-4 md:px-8 bg-white/80 backdrop-blur-sm z-30 sticky top-0 transition-all ${zenMode ? 'py-8 h-24' : ''}`}>
+           <div className="flex items-center gap-2 md:gap-4">
+              {/* Mobile Menu Trigger */}
+              <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 -ml-2 text-gray-500">
+                  <Menu className="w-6 h-6" />
+              </button>
+
+              <span className="text-xs font-bold text-ink-300 uppercase tracking-widest hidden sm:inline">Editor</span>
               {!zenMode && <div className="h-4 w-px bg-[#E5E5E0] hidden sm:block"></div>}
               
               {/* Sound Cycle Button */}
               <button 
                 onClick={cycleSoundMode}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold uppercase tracking-wider min-w-[120px] justify-center ${soundMode !== 'off' ? 'bg-black text-white border-black' : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'}`}
+                className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold uppercase tracking-wider min-w-[120px] justify-center ${soundMode !== 'off' ? 'bg-black text-white border-black' : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'}`}
               >
                   {getSoundIcon()}
                   {getSoundLabel()}
               </button>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 ml-2">
+              <div className="flex items-center gap-1 md:gap-2 ml-2">
                 <button 
                     onClick={handleExport}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-black hover:border-black transition-all text-[10px] font-bold uppercase tracking-wider"
+                    className="flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:gap-2 md:px-3 md:py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-black hover:border-black transition-all"
                     title="Export to .txt"
                 >
-                    <Download className="w-3 h-3" /> <span className="hidden sm:inline">Export</span>
+                    <Download className="w-4 h-4 md:w-3 md:h-3" /> <span className="hidden md:inline text-[10px] font-bold uppercase tracking-wider">Export</span>
                 </button>
                 <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-black hover:border-black transition-all text-[10px] font-bold uppercase tracking-wider"
+                    className="flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:gap-2 md:px-3 md:py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-black hover:border-black transition-all"
                     title="Attach Image"
                 >
-                    <ImageIcon className="w-3 h-3" /> <span className="hidden sm:inline">Image</span>
+                    <ImageIcon className="w-4 h-4 md:w-3 md:h-3" /> <span className="hidden md:inline text-[10px] font-bold uppercase tracking-wider">Image</span>
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                 </button>
                 <button 
                     onClick={() => pdfInputRef.current?.click()}
                     disabled={isProcessingPdf}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-black hover:border-black transition-all text-[10px] font-bold uppercase tracking-wider disabled:opacity-50"
+                    className="flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:gap-2 md:px-3 md:py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:text-black hover:border-black transition-all disabled:opacity-50"
                     title="Extract Text from PDF"
                 >
-                    {isProcessingPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileUp className="w-3 h-3" />} 
-                    <span className="hidden sm:inline">{isProcessingPdf ? 'Scanning...' : 'PDF'}</span>
+                    {isProcessingPdf ? <Loader2 className="w-4 h-4 md:w-3 md:h-3 animate-spin" /> : <FileUp className="w-4 h-4 md:w-3 md:h-3" />} 
+                    <span className="hidden md:inline text-[10px] font-bold uppercase tracking-wider">{isProcessingPdf ? '...' : 'PDF'}</span>
                     <input type="file" ref={pdfInputRef} className="hidden" accept="application/pdf" onChange={handlePdfUpload} />
                 </button>
               </div>
 
            </div>
            
-           <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+           <div className="flex items-center gap-2 md:gap-4">
+              <div className="hidden md:flex items-center gap-2 text-xs font-mono text-gray-400">
                  {isSaving ? (
-                     <span className="flex items-center gap-2 text-black"><div className="w-1.5 h-1.5 bg-black rounded-full animate-pulse"></div> Saving...</span>
+                     <span className="flex items-center gap-2 text-black"><RefreshCw className="w-3 h-3 animate-spin" /> Syncing...</span>
                  ) : (
-                     <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Saved {lastSaved}</span>
+                     <span className="flex items-center gap-1 text-green-600"><Cloud className="w-3 h-3" /> Cloud</span>
                  )}
               </div>
               <button 
@@ -363,11 +418,11 @@ export default function SmartNotes({ user }: SmartNotesProps) {
            <div className={`flex-1 overflow-y-auto bg-white relative group custom-scrollbar ${zenMode ? 'max-w-3xl mx-auto pt-12' : 'p-0'}`}>
               
               {/* Title Input */}
-              <div className="px-12 pt-12 pb-4">
+              <div className="px-6 md:px-12 pt-8 md:pt-12 pb-4">
                   <input 
                     value={activeNote.title}
                     onChange={(e) => updateActiveNote({ title: e.target.value })}
-                    className="w-full text-4xl font-serif font-bold text-black placeholder-gray-300 focus:outline-none bg-transparent"
+                    className="w-full text-3xl md:text-4xl font-serif font-bold text-black placeholder-gray-300 focus:outline-none bg-transparent"
                     placeholder="Untitled Note"
                   />
               </div>
@@ -379,7 +434,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="bg-[#F5F5F0] border-y border-[#E5E5E0] px-12 py-6 flex gap-4 overflow-x-auto z-20 relative"
+                        className="bg-[#F5F5F0] border-y border-[#E5E5E0] px-6 md:px-12 py-6 flex gap-4 overflow-x-auto z-20 relative"
                     >
                         {activeNote.images.map((img, idx) => (
                             <motion.div 
@@ -404,7 +459,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
 
               {/* PDF Processing Indicator */}
               {isProcessingPdf && (
-                  <div className="px-12 py-4 bg-blue-50 border-y border-blue-100 flex items-center gap-3">
+                  <div className="px-6 md:px-12 py-4 bg-blue-50 border-y border-blue-100 flex items-center gap-3">
                       <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                       <span className="text-sm text-blue-800 font-medium">Gemini AI is analyzing PDF document structure...</span>
                   </div>
@@ -429,10 +484,9 @@ export default function SmartNotes({ user }: SmartNotesProps) {
                     style={{
                         lineHeight: '40px',
                         fontSize: '18px',
-                        padding: '0 48px',
                         paddingTop: '0px', 
                     }}
-                    className="w-full h-full min-h-[calc(100vh-200px)] resize-none focus:outline-none bg-transparent font-serif text-ink-900 placeholder:text-gray-200 relative z-10 overflow-hidden leading-[40px]"
+                    className="w-full h-full min-h-[calc(100vh-200px)] resize-none focus:outline-none bg-transparent font-serif text-ink-900 placeholder:text-gray-200 relative z-10 overflow-hidden leading-[40px] px-6 md:px-12"
                     placeholder="Start typing..."
                     spellCheck={false}
                  />

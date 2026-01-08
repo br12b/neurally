@@ -216,7 +216,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       <motion.div variants={itemVariants} className="mb-8 border-y border-gray-100 py-2 bg-white/50 backdrop-blur-sm">
          <Marquee 
             text={`NEURAL OS // USER: ${user.name.toUpperCase()} // LEVEL: ${stats.level} // SYNC: ACTIVE // NEURAL GUARD: MONITORING`} 
-            className="font-mono text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]"
+            className="font-mono text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]"
             repeat={4}
          />
       </motion.div>
@@ -227,7 +227,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
           {/* USER IDENTITY CARD */}
           <div className="lg:col-span-8 flex flex-col justify-end">
               <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6 mb-6">
-                  <div className="relative">
+                  <div className="relative mx-auto md:mx-0">
                       <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-black overflow-hidden border-2 border-white shadow-xl">
                           <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover opacity-90" />
                       </div>
@@ -235,19 +235,19 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                           {stats.level}
                       </div>
                   </div>
-                  <div>
-                      <div className="flex items-center gap-2 md:gap-3 mb-1">
+                  <div className="text-center md:text-left">
+                      <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3 mb-1">
                           <h1 className="font-serif text-3xl md:text-5xl text-black tracking-tighter">{user.name}</h1>
                           {user.tier === 'Fellow' && <Crown className="w-5 h-5 md:w-6 md:h-6 text-yellow-500 fill-yellow-500" />}
                       </div>
-                      <p className="text-gray-400 font-mono text-[10px] md:text-xs uppercase tracking-widest flex items-center gap-2">
+                      <p className="text-gray-400 font-mono text-[10px] md:text-xs uppercase tracking-widest flex items-center justify-center md:justify-start gap-2">
                           <Medal className="w-3 h-3 text-black" /> {stats.rankTitle}
                       </p>
                   </div>
               </div>
               
               {/* XP Progress Bar */}
-              <div className="w-full max-w-2xl">
+              <div className="w-full max-w-2xl mx-auto md:mx-0">
                   <div className="flex justify-between text-[10px] font-mono font-bold uppercase tracking-widest mb-2 text-gray-500">
                       <span>XP Progress</span>
                       <span>{stats.currentXP} / {stats.nextLevelXP} XP</span>
@@ -268,19 +268,19 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
               <div className="flex-1 bg-white border border-gray-200 p-4 md:p-6 rounded-2xl shadow-sm group hover:border-orange-200 transition-colors">
                   <div className="flex justify-between items-start mb-4">
                       <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Flame className="w-4 h-4 md:w-5 md:h-5" /></div>
-                      <span className="text-[9px] md:text-[10px] font-bold text-gray-300 uppercase">Day Streak</span>
+                      <span className="text-[9px] md:text-[10px] font-bold text-gray-300 uppercase">Streak</span>
                   </div>
                   <div className="text-3xl md:text-4xl font-serif text-black">{stats.streakDays}</div>
-                  <div className="text-[10px] text-gray-400 mt-1 font-mono">Keep the fire burning</div>
+                  <div className="text-[10px] text-gray-400 mt-1 font-mono">Keep it up</div>
               </div>
 
               <div className="flex-1 bg-white border border-gray-200 p-4 md:p-6 rounded-2xl shadow-sm group hover:border-purple-200 transition-colors">
                   <div className="flex justify-between items-start mb-4">
                       <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><Activity className="w-4 h-4 md:w-5 md:h-5" /></div>
-                      <span className="text-[9px] md:text-[10px] font-bold text-gray-300 uppercase">Focus Time</span>
+                      <span className="text-[9px] md:text-[10px] font-bold text-gray-300 uppercase">Focus</span>
                   </div>
                   <div className="text-3xl md:text-4xl font-serif text-black">{Math.floor(stats.totalFocusMinutes / 60)}h</div>
-                  <div className="text-[10px] text-gray-400 mt-1 font-mono">{stats.totalFocusMinutes % 60}m this week</div>
+                  <div className="text-[10px] text-gray-400 mt-1 font-mono">{stats.totalFocusMinutes % 60}m total</div>
               </div>
           </div>
       </motion.div>
@@ -323,7 +323,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                 onDrop={handleDrop}
              >
                 <textarea 
-                  className={`w-full h-[250px] md:h-[350px] bg-white border p-6 md:p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-lg md:text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'} ${errorState ? 'border-red-200' : ''}`}
+                  className={`w-full h-[250px] md:h-[350px] bg-white border p-6 md:p-8 resize-none focus:outline-none focus:ring-1 focus:ring-black/5 transition-all duration-300 font-serif text-lg md:text-xl text-black placeholder-gray-300 leading-relaxed z-10 relative shadow-[0_20px_40px_-10px_rgba(0,0,0,0.05)] ${isDragging ? 'border-black' : 'border-gray-200 focus:border-black'} ${errorState ? 'border-red-200' : ''} rounded-2xl md:rounded-none`}
                   placeholder={t.placeholder}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -347,9 +347,9 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                   )}
                 </AnimatePresence>
                 
-                {/* Decorative Corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-black pointer-events-none"></div>
-                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-black pointer-events-none"></div>
+                {/* Decorative Corners (Desktop Only) */}
+                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-black pointer-events-none hidden md:block"></div>
+                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-black pointer-events-none hidden md:block"></div>
              </div>
              
              {/* Action Bar */}
@@ -384,7 +384,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
                   onClick={() => generateQuestions(inputText)}
                   disabled={isProcessing || (inputText.length < 10 && !isProcessing)}
                   className={`
-                    w-full md:w-auto px-10 py-4 bg-black text-white text-xs font-bold tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 shadow-sharp hover:shadow-none hover:translate-x-1 hover:translate-y-1
+                    w-full md:w-auto px-10 py-4 bg-black text-white text-xs font-bold tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 shadow-sharp hover:shadow-none hover:translate-x-1 hover:translate-y-1 rounded-xl md:rounded-none
                     ${isProcessing ? 'opacity-80' : ''}
                   `}
                 >
@@ -435,7 +435,7 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
             {/* BADGE COLLECTION */}
             <motion.div variants={itemVariants} className="bg-white border border-gray-200 p-6 rounded-2xl">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-serif text-lg">Neural Achievements</h3>
+                    <h3 className="font-serif text-lg">Achievements</h3>
                     <AwardIcon className="w-5 h-5 text-gray-400" />
                 </div>
                 <div className="grid grid-cols-4 gap-4">

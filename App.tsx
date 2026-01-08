@@ -60,46 +60,38 @@ function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         // 1. OPTIMISTIC UI: Google'dan gelen verilerle kullanıcıyı HEMEN içeri al.
-        // Veritabanını bekleyip kullanıcıyı spinner'da bekletmiyoruz.
         const optimisticUser: User = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || (firebaseUser.email?.split('@')[0] || "Scholar"),
             email: firebaseUser.email || "No Email",
             avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.email || 'User'}&background=000000&color=fff`,
             tier: 'Free',
-            stats: generateDefaultStats() // Geçici olarak varsayılan statları göster
+            stats: generateDefaultStats()
         };
 
-        // State'i güncelle ve Loading'i kapat (Kullanıcı App'i görsün)
         setUser(optimisticUser);
         setIsLoading(false);
 
-        // 2. BACKGROUND SYNC: Arka planda veritabanına bağlanıp gerçek verileri çek.
+        // 2. BACKGROUND SYNC
         const userDocRef = doc(db, "users", firebaseUser.uid);
 
         unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
-                // Veri varsa, mevcut state ile birleştir (Merge)
                 const dbData = docSnap.data() as User;
                 setUser((prev) => ({
-                    ...prev!, // Mevcut optimistic user
-                    ...dbData, // DB'den gelen gerçek veriler (XP, Level vs.)
-                    // Kritik auth verilerini (avatar, email) Google'dan gelenle taze tut
+                    ...prev!,
+                    ...dbData, 
                     email: firebaseUser.email || dbData.email,
                     avatar: firebaseUser.photoURL || dbData.avatar
                 }));
             } else {
-                // Veri yoksa (Yeni Kullanıcı), oluştur.
-                // UI zaten açık olduğu için bu işlem tamamen sessiz gerçekleşir.
                 setDoc(userDocRef, optimisticUser).catch(err => console.error("Auto-create failed", err));
             }
         }, (error) => {
             console.error("Real-time Sync Error (Silent):", error);
-            // Hata olsa bile kullanıcı uygulamayı kullanmaya devam edebilir (Optimistic User sayesinde)
         });
 
       } else {
-        // Çıkış yapıldı
         setUser(null);
         setIsLoading(false);
         if (unsubscribeFirestore) unsubscribeFirestore();
@@ -112,27 +104,20 @@ function App() {
     };
   }, []);
 
-  // --- XP GÜNCELLEME ---
-  // Kullanıcı XP kazandığında sadece 'stats' alanını güncelle (Tüm user objesini değil)
   const handleAddXP = async (amount: number) => {
       if (!user || !user.stats) return;
-      
       const newXP = user.stats.currentXP + amount;
       let newLevel = user.stats.level;
       let nextXP = user.stats.nextLevelXP;
       
-      // Level Up Mantığı
       if (newXP >= nextXP) {
           newLevel += 1;
           nextXP = Math.floor(nextXP * 1.5);
       }
       
       const newStats = { ...user.stats, currentXP: newXP, level: newLevel, nextLevelXP: nextXP };
-      
-      // 1. Önce UI'ı güncelle (Hız hissi için)
       setUser(prev => prev ? { ...prev, stats: newStats } : null);
 
-      // 2. Arka planda DB'ye yaz
       try {
           const userDocRef = doc(db, "users", user.id);
           await updateDoc(userDocRef, { stats: newStats });
@@ -141,7 +126,6 @@ function App() {
       }
   };
 
-  // Data Handlers
   const handleQuestionsGenerated = (newQuestions: Question[]) => {
     setQuestions(newQuestions);
     setActiveView('quiz');
@@ -151,7 +135,6 @@ function App() {
     setFlashcards(prev => [card, ...prev]);
   };
 
-  // Manual Login Handler (Demo Modu İçin)
   const handleManualLogin = (userData: User) => {
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
@@ -179,7 +162,7 @@ function App() {
   const isImmersiveView = activeView === 'speedrun';
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen text-ink-900 selection:bg-black selection:text-white overflow-hidden font-sans bg-transparent relative">
+    <div className="flex flex-col md:flex-row min-h-[100dvh] text-ink-900 selection:bg-black selection:text-white overflow-hidden font-sans bg-transparent relative">
       
       {!isImmersiveView && <BackgroundFlow />}
 
@@ -203,8 +186,9 @@ function App() {
         />
       )}
       
-      <main className={`flex-1 relative h-[calc(100vh-80px)] md:h-screen z-10 ${isImmersiveView ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
-        <div className={`relative z-10 mx-auto ${isImmersiveView ? 'w-full h-full' : 'min-h-screen max-w-[1600px]'}`}>
+      {/* MOBILE OPTIMIZATION: Use dvh (dynamic viewport height) and add bottom padding for mobile nav */}
+      <main className={`flex-1 relative h-[calc(100dvh-80px)] md:h-screen z-10 ${isImmersiveView ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar pb-24 md:pb-0'}`}>
+        <div className={`relative z-10 mx-auto ${isImmersiveView ? 'w-full h-full' : 'min-h-full max-w-[1600px]'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}

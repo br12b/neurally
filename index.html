@@ -3,7 +3,7 @@
 <html lang="tr" class="light">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Neurally - Cognitive Operating System</title>
     <meta name="description" content="Ezberleme, Öğren. Neurally, öğrenciler ve profesyoneller için yapay zeka destekli (Gemini), Aktif Çağrışım ve Aralıklı Tekrar temelli gelişmiş bir öğrenme platformudur." />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -63,6 +63,13 @@
         font-family: 'Inter', sans-serif;
         overflow-x: hidden;
         -webkit-font-smoothing: antialiased;
+        /* Prevent pull-to-refresh on mobile */
+        overscroll-behavior-y: none;
+      }
+
+      /* Fix for iOS Input Zoom */
+      input, textarea, select {
+        font-size: 16px !important;
       }
 
       .bg-noise {
@@ -93,13 +100,14 @@
 
       ::-webkit-scrollbar {
         width: 4px;
+        height: 4px;
       }
       ::-webkit-scrollbar-track {
         background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
         background: #D4D4D4; 
-        border-radius: 0px;
+        border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #000000; 
