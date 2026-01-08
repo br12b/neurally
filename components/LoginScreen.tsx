@@ -83,7 +83,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           let msg = "Giriş başarısız.";
           if (error.code === 'auth/wrong-password') msg = "Hatalı şifre.";
           if (error.code === 'auth/user-not-found') msg = "Kullanıcı bulunamadı. Kayıt olun.";
-          if (error.code === 'auth/email-already-in-use') msg = "Bu e-posta kullanımda.";
+          if (error.code === 'auth/email-already-in-use') msg = "Bu e-posta zaten kullanımda.";
           if (error.code === 'auth/invalid-email') msg = "Geçersiz e-posta formatı.";
           setErrorMsg(msg);
           setIsLoading(false);
@@ -163,111 +163,113 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </div>
 
         {/* AUTH FORMS */}
-        <AnimatePresence mode="wait">
-            
-            {/* MODE 1: SELECTION */}
-            {mode === 'selection' && (
-                <motion.div 
-                    key="selection"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ duration: 0.2 }}
-                    className="w-full space-y-3"
-                >
-                    {/* Google Button */}
-                    <button
-                        onClick={handleGoogleLogin}
-                        disabled={isLoading}
-                        className="group relative w-full bg-white text-black h-14 flex items-center justify-center gap-3 overflow-hidden transition-all hover:scale-[1.02]"
+        <div className="w-full relative min-h-[200px]">
+            <AnimatePresence mode="wait">
+                
+                {/* MODE 1: SELECTION */}
+                {mode === 'selection' && (
+                    <motion.div 
+                        key="selection"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full space-y-3 absolute top-0 left-0"
                     >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.033s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
-                        <span className="font-mono text-xs font-bold uppercase tracking-widest">Google ile Giriş</span>
-                        {isLoading && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><div className="w-4 h-4 border-2 border-black rounded-full animate-spin border-t-transparent"/></div>}
-                    </button>
-
-                    {/* Email Button */}
-                    <button
-                        onClick={() => setMode('email')}
-                        className="group w-full bg-transparent border border-white/30 text-white h-14 flex items-center justify-center gap-3 hover:bg-white/10 hover:border-white transition-all"
-                    >
-                        <Mail className="w-4 h-4" />
-                        <span className="font-mono text-xs font-bold uppercase tracking-widest">E-Posta / Şifre</span>
-                    </button>
-
-                    {/* Demo Button */}
-                    <button onClick={handleMockLogin} className="w-full py-2 text-[10px] text-gray-500 hover:text-white uppercase tracking-widest flex items-center justify-center gap-2">
-                        <PlayCircle className="w-3 h-3" /> Sorun mu var? Demo Modu
-                    </button>
-                </motion.div>
-            )}
-
-            {/* MODE 2: EMAIL FORM */}
-            {mode === 'email' && (
-                <motion.div 
-                    key="email"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                    className="w-full space-y-4"
-                >
-                    <div className="space-y-3">
-                        <div className="relative">
-                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
-                            <input 
-                                type="email" 
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="E-Posta Adresi"
-                                className="w-full h-14 bg-white/5 border border-white/20 text-white pl-12 pr-4 text-sm font-mono focus:border-white focus:bg-white/10 outline-none placeholder:text-gray-600 transition-colors rounded-none"
-                                autoComplete="email"
-                            />
-                        </div>
-                        <div className="relative">
-                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
-                            <input 
-                                type="password" 
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Şifre"
-                                className="w-full h-14 bg-white/5 border border-white/20 text-white pl-12 pr-4 text-sm font-mono focus:border-white focus:bg-white/10 outline-none placeholder:text-gray-600 transition-colors rounded-none"
-                                autoComplete="current-password"
-                            />
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={handleEmailAuth}
-                        disabled={isLoading}
-                        className="w-full bg-white text-black h-14 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
-                    >
-                        {isLoading ? (
-                            <div className="w-4 h-4 border-2 border-black rounded-full animate-spin border-t-transparent"/>
-                        ) : (
-                            isRegistering ? <><UserPlus className="w-4 h-4"/> Kayıt Ol & Gir</> : <><LogIn className="w-4 h-4"/> Giriş Yap</>
-                        )}
-                    </button>
-
-                    <div className="flex justify-between items-center pt-2">
-                        <button 
-                            onClick={() => { setMode('selection'); setErrorMsg(null); }} 
-                            className="text-[10px] text-gray-500 hover:text-white uppercase font-mono tracking-wide flex items-center gap-1 transition-colors"
+                        {/* Google Button */}
+                        <button
+                            onClick={handleGoogleLogin}
+                            disabled={isLoading}
+                            className="group relative w-full bg-white text-black h-14 flex items-center justify-center gap-3 overflow-hidden transition-all hover:scale-[1.02]"
                         >
-                            <ChevronLeft className="w-3 h-3" /> Geri Dön
+                            <svg className="w-4 h-4" viewBox="0 0 24 24"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.033s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
+                            <span className="font-mono text-xs font-bold uppercase tracking-widest">Google ile Giriş</span>
+                            {isLoading && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><div className="w-4 h-4 border-2 border-black rounded-full animate-spin border-t-transparent"/></div>}
                         </button>
-                        
-                        <button 
-                            onClick={() => setIsRegistering(!isRegistering)} 
-                            className="text-[10px] text-white border-b border-white/30 hover:border-white pb-0.5 uppercase font-mono tracking-wide transition-all"
-                        >
-                            {isRegistering ? 'Hesabım Var: Giriş Yap' : 'Hesap Yok: Kayıt Ol'}
-                        </button>
-                    </div>
-                </motion.div>
-            )}
 
-        </AnimatePresence>
+                        {/* Email Button */}
+                        <button
+                            onClick={() => setMode('email')}
+                            className="group w-full bg-transparent border border-white/30 text-white h-14 flex items-center justify-center gap-3 hover:bg-white/10 hover:border-white transition-all"
+                        >
+                            <Mail className="w-4 h-4" />
+                            <span className="font-mono text-xs font-bold uppercase tracking-widest">E-Posta / Şifre</span>
+                        </button>
+
+                        {/* Demo Button */}
+                        <button onClick={handleMockLogin} className="w-full py-2 text-[10px] text-gray-500 hover:text-white uppercase tracking-widest flex items-center justify-center gap-2">
+                            <PlayCircle className="w-3 h-3" /> Sorun mu var? Demo Modu
+                        </button>
+                    </motion.div>
+                )}
+
+                {/* MODE 2: EMAIL FORM */}
+                {mode === 'email' && (
+                    <motion.div 
+                        key="email"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.2 }}
+                        className="w-full space-y-4 absolute top-0 left-0"
+                    >
+                        <div className="space-y-3">
+                            <div className="relative">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                                <input 
+                                    type="email" 
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="E-Posta Adresi"
+                                    className="w-full h-14 bg-white/5 border border-white/20 text-white pl-12 pr-4 text-sm font-mono focus:border-white focus:bg-white/10 outline-none placeholder:text-gray-600 transition-colors rounded-none"
+                                    autoComplete="email"
+                                />
+                            </div>
+                            <div className="relative">
+                                <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
+                                <input 
+                                    type="password" 
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Şifre"
+                                    className="w-full h-14 bg-white/5 border border-white/20 text-white pl-12 pr-4 text-sm font-mono focus:border-white focus:bg-white/10 outline-none placeholder:text-gray-600 transition-colors rounded-none"
+                                    autoComplete="current-password"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleEmailAuth}
+                            disabled={isLoading}
+                            className="w-full bg-white text-black h-14 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+                        >
+                            {isLoading ? (
+                                <div className="w-4 h-4 border-2 border-black rounded-full animate-spin border-t-transparent"/>
+                            ) : (
+                                isRegistering ? <><UserPlus className="w-4 h-4"/> Kayıt Ol & Gir</> : <><LogIn className="w-4 h-4"/> Giriş Yap</>
+                            )}
+                        </button>
+
+                        <div className="flex justify-between items-center pt-2">
+                            <button 
+                                onClick={() => { setMode('selection'); setErrorMsg(null); }} 
+                                className="text-[10px] text-gray-500 hover:text-white uppercase font-mono tracking-wide flex items-center gap-1 transition-colors"
+                            >
+                                <ChevronLeft className="w-3 h-3" /> Geri Dön
+                            </button>
+                            
+                            <button 
+                                onClick={() => setIsRegistering(!isRegistering)} 
+                                className="text-[10px] text-white border-b border-white/30 hover:border-white pb-0.5 uppercase font-mono tracking-wide transition-all"
+                            >
+                                {isRegistering ? 'Hesabım Var: Giriş Yap' : 'Hesap Yok: Kayıt Ol'}
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+
+            </AnimatePresence>
+        </div>
 
         <p className="absolute bottom-8 text-[9px] text-white/20 text-center font-mono uppercase tracking-widest">
             Cognitive OS Authentication Layer
