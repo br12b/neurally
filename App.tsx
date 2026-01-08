@@ -59,26 +59,9 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // --- MOBILE DEEP LINK HANDLER (GLOBAL) ---
-        // Check if we are in a mobile context (either by URL or session flag from LoginScreen)
-        const urlParams = new URLSearchParams(window.location.search);
-        const isMobileUrl = urlParams.get('mobile') === 'true';
-        const isMobileSession = sessionStorage.getItem('neurally_mobile_auth') === 'true';
-        
-        if (isMobileUrl || isMobileSession) {
-            // Get ID Token
-            const idToken = await firebaseUser.getIdToken();
-            
-            // Clean up session
-            sessionStorage.removeItem('neurally_mobile_auth');
-            
-            // Redirect to App
-            window.location.href = `neurally.app://callback?token=${idToken}`;
-            
-            // Do NOT set user state, keep loading/login screen until redirect happens
-            return;
-        }
-        // ------------------------------------------
+        // Not: Mobil yönlendirme işlemini LoginScreen.tsx içindeki getRedirectResult ile yapıyoruz.
+        // Çünkü App.tsx'teki firebaseUser.getIdToken() Firebase Token'ı verir, 
+        // ancak mobil uygulama Google ID Token'ına ihtiyaç duyabilir.
 
         // Retrieve stats from local storage if available to persist game state
         const localStatsKey = `neurally_stats_${firebaseUser.uid}`;
