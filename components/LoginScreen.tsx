@@ -1,10 +1,16 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
 import { ScanLine, AlertCircle, PlayCircle, Mail, Key, ChevronLeft, UserPlus, LogIn } from 'lucide-react';
 import { User } from '../types';
 import BackgroundFlow from './BackgroundFlow';
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword 
+} from 'firebase/auth';
 import { auth, googleProvider } from '../utils/firebase';
 
 interface LoginScreenProps {
@@ -45,16 +51,62 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
   };
 
-  // --- 1. GOOGLE LOGIN ---
+  // --- 0. CHECK REDIRECT RESULT (For Mobile Flow) ---
+  useEffect(() => {
+    // Sayfa yüklendiğinde, eğer bir redirect işleminden dönüldüyse sonucu al.
+    // Başarılı giriş App.tsx'teki onAuthStateChanged tarafından yakalanır,
+    // burası sadece olası hataları yakalamak ve loading state'i kapatmak içindir.
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          console.log("Redirect login successful for:", result.user.email);
+          // Başarılı olursa App.tsx yönlendirmeyi yapar.
+        }
+        setIsLoading(false);
+      })
+      .catch((error) => {
+        console.error("Redirect Login Error:", error);
+        setIsLoading(false);
+        
+        if (error.code === 'auth/unauthorized-domain') {
+            setErrorMsg("DOMAIN HATASI: Bu domain (Vercel) Firebase Console'da 'Authorized Domains' listesine eklenmemiş.");
+        } else if (error.code !== 'auth/popup-closed-by-user') {
+            setErrorMsg(error.message);
+        }
+      });
+  }, []);
+
+  // --- 1. GOOGLE LOGIN (HYBRID: POPUP vs REDIRECT) ---
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setErrorMsg(null);
+    
+    // Mobil cihaz tespiti (Basit kontrol)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
+
     try {
-        await signInWithPopup(auth, googleProvider);
+        if (isMobile) {
+            // Mobilde Redirect kullan (Daha güvenilir)
+            console.log("Mobile device detected, using signInWithRedirect");
+            await signInWithRedirect(auth, googleProvider);
+            // Not: Kod burada durur, sayfa Google'a yönlenir.
+        } else {
+            // Masaüstünde Popup kullan (Daha hızlı)
+            console.log("Desktop detected, using signInWithPopup");
+            await signInWithPopup(auth, googleProvider);
+            // Popup başarılı olursa App.tsx state'i günceller.
+        }
     } catch (error: any) {
         console.error("Google Auth Error:", error);
-        setErrorMsg("Google bağlantısı başarısız. Lütfen 'E-Posta' yöntemini deneyin.");
         setIsLoading(false);
+        
+        if (error.code === 'auth/unauthorized-domain') {
+            setErrorMsg("YETKİSİZ DOMAIN: Lütfen Firebase Console -> Authentication -> Settings -> Authorized Domains kısmına Vercel domaininizi ekleyin.");
+        } else if (error.code === 'auth/popup-blocked') {
+            setErrorMsg("Pop-up engellendi. Lütfen tarayıcı izinlerini kontrol edin veya mobil cihazda deneyin.");
+        } else if (error.code !== 'auth/popup-closed-by-user') { // Kullanıcı kapattıysa hata gösterme
+            setErrorMsg("Bağlantı hatası. Lütfen tekrar deneyin.");
+        }
     }
   };
 
