@@ -21,7 +21,7 @@ import BackgroundFlow from './components/BackgroundFlow';
 import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore'; // onSnapshot eklendi
+import { doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore'; 
 import { auth, db } from './utils/firebase';
 
 function App() {
@@ -59,53 +59,43 @@ function App() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Kullanıcı giriş yaptı, veritabanını dinlemeye başla
+        // 1. OPTIMISTIC UI: Google'dan gelen verilerle kullanıcıyı HEMEN içeri al.
+        // Veritabanını bekleyip kullanıcıyı spinner'da bekletmiyoruz.
+        const optimisticUser: User = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || (firebaseUser.email?.split('@')[0] || "Scholar"),
+            email: firebaseUser.email || "No Email",
+            avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.email || 'User'}&background=000000&color=fff`,
+            tier: 'Free',
+            stats: generateDefaultStats() // Geçici olarak varsayılan statları göster
+        };
+
+        // State'i güncelle ve Loading'i kapat (Kullanıcı App'i görsün)
+        setUser(optimisticUser);
+        setIsLoading(false);
+
+        // 2. BACKGROUND SYNC: Arka planda veritabanına bağlanıp gerçek verileri çek.
         const userDocRef = doc(db, "users", firebaseUser.uid);
 
-        // onSnapshot: Veritabanındaki değişiklikleri anlık dinler. 
-        // İnternet yoksa önbellekten (cache) okur, yani eski veriler asla kaybolmaz.
-        unsubscribeFirestore = onSnapshot(userDocRef, async (docSnap) => {
+        unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
-                // 1. Veri var: Kullanıcıyı güncelle
-                const userData = docSnap.data() as User;
-                
-                // Auth verisi ile DB verisini birleştir (Avatar güncellemeleri için)
-                setUser({
-                    ...userData,
-                    email: firebaseUser.email || userData.email,
-                    avatar: firebaseUser.photoURL || userData.avatar
-                });
+                // Veri varsa, mevcut state ile birleştir (Merge)
+                const dbData = docSnap.data() as User;
+                setUser((prev) => ({
+                    ...prev!, // Mevcut optimistic user
+                    ...dbData, // DB'den gelen gerçek veriler (XP, Level vs.)
+                    // Kritik auth verilerini (avatar, email) Google'dan gelenle taze tut
+                    email: firebaseUser.email || dbData.email,
+                    avatar: firebaseUser.photoURL || dbData.avatar
+                }));
             } else {
-                // 2. Veri yok (Yeni Kullanıcı): Veritabanında oluştur
-                const fallbackName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Scholar";
-                const newUser: User = {
-                    id: firebaseUser.uid,
-                    name: fallbackName,
-                    email: firebaseUser.email || "No Email",
-                    avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${fallbackName}&background=000000&color=fff`,
-                    tier: 'Free',
-                    stats: generateDefaultStats()
-                };
-                
-                // Veritabanına yaz (Bu işlem de listener'ı tetikler ve yukarıdaki if bloğuna girer)
-                await setDoc(userDocRef, newUser);
-                setUser(newUser);
+                // Veri yoksa (Yeni Kullanıcı), oluştur.
+                // UI zaten açık olduğu için bu işlem tamamen sessiz gerçekleşir.
+                setDoc(userDocRef, optimisticUser).catch(err => console.error("Auto-create failed", err));
             }
-            setIsLoading(false);
         }, (error) => {
-            console.error("Real-time Sync Error:", error);
-            // Hata durumunda (örn: tamamen internet yok ve cache temizlenmiş)
-            // Yine de Auth bilgisinden kullanıcıyı oluşturmaya çalış
-            const fallbackName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || "Offline Scholar";
-            setUser({
-                id: firebaseUser.uid,
-                name: fallbackName,
-                email: firebaseUser.email || "No Email",
-                avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${fallbackName}&background=000000&color=fff`,
-                tier: 'Free',
-                stats: generateDefaultStats()
-            });
-            setIsLoading(false);
+            console.error("Real-time Sync Error (Silent):", error);
+            // Hata olsa bile kullanıcı uygulamayı kullanmaya devam edebilir (Optimistic User sayesinde)
         });
 
       } else {
