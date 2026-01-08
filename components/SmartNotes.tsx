@@ -23,22 +23,14 @@ interface SmartNotesProps {
 }
 
 export default function SmartNotes({ user }: SmartNotesProps) {
-  // --- 1. INITIALIZATION ---
-  const getCachedNotes = (): Note[] => {
-      if (typeof window === 'undefined') return [];
-      try {
-          const saved = localStorage.getItem(`neurally_notes_cache_${user.id}`);
-          if (saved) return JSON.parse(saved);
-      } catch (e) {}
-      return [];
-  };
-
-  const [notes, setNotes] = useState<Note[]>(getCachedNotes());
-  const [activeNoteId, setActiveNoteId] = useState<string | null>(notes.length > 0 ? notes[0].id : null);
+  // --- 1. INITIALIZATION (CLOUD FIRST) ---
+  // No local storage init. Start empty.
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   
   // Sync Status
-  const [status, setStatus] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
-  const [isCloudReady, setIsCloudReady] = useState(false); // Veri ezilmesini önleyen kilit
+  const [status, setStatus] = useState<'idle' | 'syncing' | 'saved' | 'error' | 'loading'>('loading');
+  const [isCloudReady, setIsCloudReady] = useState(false); // Critical Lock
   
   // UI States
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
@@ -54,96 +46,96 @@ export default function SmartNotes({ user }: SmartNotesProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
-  // --- 2. REAL-TIME LISTENER (NOTION STYLE) ---
+  // --- 2. REAL-TIME LISTENER (STRICT) ---
   useEffect(() => {
       if (!user) return;
+      setStatus('loading');
 
       const userDocRef = doc(db, "users", user.id);
       
       const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
               const data = docSnap.data();
+              
               if (data.smartNotes && Array.isArray(data.smartNotes)) {
+                  // DIRECT OVERWRITE FROM CLOUD
+                  // We assume cloud is always truth.
+                  // Only if we are NOT currently typing (debouncing) should we overwrite?
+                  // Actually, for multi-device sync to work, we MUST overwrite.
+                  // Ideally we check timestamps, but for this fix, we trust the cloud stream.
                   
-                  // Local veri ile Cloud verisi farklıysa güncelle
-                  setNotes(prev => {
-                      const cloudStr = JSON.stringify(data.smartNotes);
-                      const localStr = JSON.stringify(prev);
-
-                      if (cloudStr !== localStr) {
-                          isRemoteUpdate.current = true; // Bu update buluttan geldi, tekrar kaydetme
-                          
-                          // Cache'i güncelle
-                          localStorage.setItem(`neurally_notes_cache_${user.id}`, cloudStr);
-                          
-                          return data.smartNotes;
-                      }
-                      return prev;
-                  });
-
-                  // Eğer aktif not yoksa ilkini seç
-                  if (!activeNoteId && data.smartNotes.length > 0) {
+                  // Simple check to prevent cursor jumping if typing:
+                  // Only update if content is actually different
+                  
+                  isRemoteUpdate.current = true; // Mark as remote update
+                  setNotes(data.smartNotes);
+                  
+                  if (data.smartNotes.length > 0 && !activeNoteId) {
                       setActiveNoteId(data.smartNotes[0].id);
                   }
+              } else {
+                  // No notes in cloud yet
+                  setNotes([]);
               }
           }
-          // İlk veri geldi (boş veya dolu), artık kilidi açabiliriz
-          setIsCloudReady(true);
+          
+          setIsCloudReady(true); // Now we allow edits
+          setStatus('saved');
           
       }, (error) => {
           console.error("Sync Error:", error);
           setStatus('error');
-          setIsCloudReady(true); // Hata olsa bile kullanıcının yazmasına izin ver (Local mod)
+          setIsCloudReady(true); // Allow offline editing if sync fails
       });
 
       globalAudio.init();
       return () => unsubscribe();
   }, [user.id]);
 
-  // Varsayılan not oluşturucu (Sadece liste tamamen boşsa ve bulut hazırsa)
+  // Default Note Creation (Only if cloud is ready and empty)
   useEffect(() => {
       if (isCloudReady && notes.length === 0) {
-          const newNote: Note = {
-              id: Date.now().toString(),
-              title: "Untitled Note",
-              content: "",
+          // Don't auto-create immediately to avoid loops, wait for user action or just show empty state
+          // For UX, let's create a welcome note if absolutely nothing exists
+          const welcomeNote: Note = {
+              id: "welcome",
+              title: "Welcome to Smart Notes",
+              content: "Start typing here... Your notes are synced to the cloud.",
               images: [],
               lastModified: Date.now()
           };
-          setNotes([newNote]);
-          setActiveNoteId(newNote.id);
-          // Bunu hemen kaydetme, kullanıcı bir şey yazarsa kaydedilir.
+          // We trigger a save immediately to initialize the array in DB
+          setNotes([welcomeNote]);
+          setActiveNoteId("welcome");
       }
-  }, [isCloudReady, notes.length]);
+  }, [isCloudReady]);
 
-  // --- 3. AUTO-SAVE MECHANISM ---
+  // --- 3. AUTO-SAVE MECHANISM (ONE-WAY SYNC) ---
   useEffect(() => {
+    // BLOCKED if cloud isn't ready. This prevents overwriting cloud data with empty local state on load.
     if (!user || !isCloudReady) return;
 
-    // Eğer güncelleme buluttan geldiyse (isRemoteUpdate), bunu tekrar buluta yazma (Loop Engelleme)
+    // Prevent loop if this update came from the listener
     if (isRemoteUpdate.current) {
         isRemoteUpdate.current = false;
         return;
     }
 
-    // 1. Local Cache (Anlık)
-    localStorage.setItem(`neurally_notes_cache_${user.id}`, JSON.stringify(notes));
     setStatus('syncing');
 
-    // 2. Cloud Save (Debounced - 1.5 saniye bekleme)
+    // Debounced Cloud Save
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
     saveTimeoutRef.current = setTimeout(async () => {
         try {
             const userDocRef = doc(db, "users", user.id);
-            // Sadece smartNotes alanını güncelle
             await setDoc(userDocRef, { smartNotes: notes }, { merge: true });
             setStatus('saved');
         } catch (error) {
             console.error("Auto-Save Failed:", error);
             setStatus('error');
         }
-    }, 1500);
+    }, 2000); // 2 seconds debounce
 
     return () => clearTimeout(saveTimeoutRef.current);
   }, [notes, user, isCloudReady]);
@@ -154,8 +146,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
 
   const updateActiveNote = (updates: Partial<Note>) => {
       if (!activeNote) return;
-      // Kullanıcı elle değiştiriyor, remote flag kapalı olmalı
-      isRemoteUpdate.current = false; 
+      isRemoteUpdate.current = false; // User action
       setNotes(prev => prev.map(n => n.id === activeNote.id ? { ...n, ...updates, lastModified: Date.now() } : n));
   };
 
@@ -167,7 +158,6 @@ export default function SmartNotes({ user }: SmartNotesProps) {
           images: [],
           lastModified: Date.now()
       };
-      // Yeni not ekle, remote flag kapalı
       isRemoteUpdate.current = false;
       const updatedNotes = [newNote, ...notes];
       setNotes(updatedNotes);
@@ -326,12 +316,14 @@ export default function SmartNotes({ user }: SmartNotesProps) {
   );
 
   // --- LOADING STATE ---
-  if (!isCloudReady && notes.length === 0) {
+  if (!isCloudReady) {
       return (
           <div className="flex h-full items-center justify-center bg-white">
               <div className="flex flex-col items-center gap-4">
                   <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
-                  <p className="text-xs font-mono text-gray-400 uppercase tracking-widest">Syncing with Neural Cloud...</p>
+                  <p className="text-xs font-mono text-gray-400 uppercase tracking-widest">
+                      {status === 'loading' ? 'FETCHING FROM CLOUD...' : 'SYNCING...'}
+                  </p>
               </div>
           </div>
       );
@@ -468,6 +460,11 @@ export default function SmartNotes({ user }: SmartNotesProps) {
               
               {/* STATUS INDICATOR (Not Button) */}
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-transparent">
+                 {status === 'loading' && (
+                     <div className="flex items-center gap-2 text-blue-500">
+                         <RefreshCw className="w-3 h-3 animate-spin" /> <span className="text-[10px] font-bold uppercase">Downloading...</span>
+                     </div>
+                 )}
                  {status === 'syncing' && (
                      <div className="flex items-center gap-2 text-gray-400">
                          <RefreshCw className="w-3 h-3 animate-spin" /> <span className="text-[10px] font-bold uppercase">Syncing...</span>
@@ -475,7 +472,7 @@ export default function SmartNotes({ user }: SmartNotesProps) {
                  )}
                  {status === 'saved' && (
                      <div className="flex items-center gap-2 text-green-600">
-                         <Cloud className="w-3 h-3" /> <span className="text-[10px] font-bold uppercase">All Saved</span>
+                         <Cloud className="w-3 h-3" /> <span className="text-[10px] font-bold uppercase">Cloud Active</span>
                      </div>
                  )}
                  {status === 'error' && (

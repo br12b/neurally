@@ -31,6 +31,7 @@ function App() {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [language, setLanguage] = useState<Language>('tr');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
 
   // Default Stats Generator
   const generateDefaultStats = (): UserStats => ({
@@ -59,8 +60,10 @@ function App() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // 1. OPTIMISTIC UI: Google'dan gelen verilerle kullanıcıyı HEMEN içeri al.
-        const optimisticUser: User = {
+        setSyncStatus('syncing');
+        
+        // 1. Initial User Setup (Skeleton)
+        const initialUser: User = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || (firebaseUser.email?.split('@')[0] || "Scholar"),
             email: firebaseUser.email || "No Email",
@@ -69,9 +72,6 @@ function App() {
             stats: generateDefaultStats()
         };
 
-        setUser(optimisticUser);
-        setIsLoading(false);
-
         // 2. BACKGROUND SYNC (User Data & Flashcards)
         const userDocRef = doc(db, "users", firebaseUser.uid);
 
@@ -79,29 +79,47 @@ function App() {
             if (docSnap.exists()) {
                 const dbData = docSnap.data();
                 
-                // Sync User Stats
+                // FORCE SYNC: Always prefer DB data over local state
                 setUser((prev) => ({
-                    ...prev!,
-                    ...dbData, 
+                    ...initialUser,
+                    ...dbData, // This overwrites local with cloud
                     email: firebaseUser.email || dbData.email,
                     avatar: firebaseUser.photoURL || dbData.avatar
                 }));
 
-                // Sync Flashcards
+                // Flashcards Sync
                 if (dbData.flashcards && Array.isArray(dbData.flashcards)) {
                     setFlashcards(dbData.flashcards);
+                } else {
+                    setFlashcards([]);
                 }
+                
+                setSyncStatus('synced');
+                setIsLoading(false);
             } else {
-                // Create user document if it doesn't exist (merge to be safe)
-                setDoc(userDocRef, optimisticUser, { merge: true }).catch(err => console.error("Auto-create failed", err));
+                // New User: Create Doc
+                setDoc(userDocRef, initialUser, { merge: true })
+                    .then(() => {
+                        setUser(initialUser);
+                        setSyncStatus('synced');
+                        setIsLoading(false);
+                    })
+                    .catch(err => {
+                        console.error("Auto-create failed", err);
+                        setSyncStatus('error');
+                    });
             }
         }, (error) => {
-            console.error("Real-time Sync Error (Silent):", error);
+            console.error("Real-time Sync Error:", error);
+            setSyncStatus('error');
+            setIsLoading(false);
         });
 
       } else {
         setUser(null);
+        setFlashcards([]);
         setIsLoading(false);
+        setSyncStatus('idle');
         if (unsubscribeFirestore) unsubscribeFirestore();
       }
     });
@@ -114,6 +132,8 @@ function App() {
 
   const handleAddXP = async (amount: number) => {
       if (!user || !user.stats) return;
+      
+      // Calculate locally first for speed
       const newXP = user.stats.currentXP + amount;
       let newLevel = user.stats.level;
       let nextXP = user.stats.nextLevelXP;
@@ -124,6 +144,8 @@ function App() {
       }
       
       const newStats = { ...user.stats, currentXP: newXP, level: newLevel, nextLevelXP: nextXP };
+      
+      // Optimistic Update
       setUser(prev => prev ? { ...prev, stats: newStats } : null);
 
       try {
@@ -139,47 +161,47 @@ function App() {
     setActiveView('quiz');
   };
 
-  // --- FLASHCARD CLOUD SYNC ---
+  // --- FLASHCARD CLOUD SYNC (Direct Write) ---
   const handleAddFlashcard = async (card: Flashcard) => {
-    // 1. Optimistic Update (Instant UI)
-    setFlashcards(prev => [card, ...prev]);
+    if (!user) return;
+    setSyncStatus('syncing');
 
-    // 2. Background Sync
-    if (user) {
-        try {
-            const userDocRef = doc(db, "users", user.id);
-            // Use setDoc with merge instead of updateDoc to safeguard against missing doc/field
-            // arrayUnion ensures we add to list without duplicating if somehow sent twice
-            await setDoc(userDocRef, {
-                flashcards: arrayUnion(card)
-            }, { merge: true });
-        } catch (error) {
-            console.error("Flashcard Save Failed:", error);
-        }
+    try {
+        const userDocRef = doc(db, "users", user.id);
+        // Direct write to DB. The onSnapshot listener will update the UI automatically.
+        // We do NOT update local state manually to ensure "Source of Truth" is always DB.
+        await setDoc(userDocRef, {
+            flashcards: arrayUnion(card)
+        }, { merge: true });
+        
+        // Success handled by onSnapshot
+    } catch (error) {
+        console.error("Flashcard Save Failed:", error);
+        setSyncStatus('error');
+        alert("Bulut hatası: Kart kaydedilemedi. İnternet bağlantınızı kontrol edin.");
     }
   };
 
   const handleDeleteFlashcard = async (cardId: number) => {
+      if (!user) return;
       const cardToDelete = flashcards.find(c => c.id === cardId);
       if (!cardToDelete) return;
+      
+      setSyncStatus('syncing');
 
-      // 1. Optimistic Update
-      setFlashcards(prev => prev.filter(c => c.id !== cardId));
-
-      // 2. Background Sync
-      if (user) {
-          try {
-              const userDocRef = doc(db, "users", user.id);
-              await updateDoc(userDocRef, {
-                  flashcards: arrayRemove(cardToDelete)
-              });
-          } catch (error) {
-              console.error("Flashcard Delete Failed:", error);
-          }
+      try {
+          const userDocRef = doc(db, "users", user.id);
+          await updateDoc(userDocRef, {
+              flashcards: arrayRemove(cardToDelete)
+          });
+      } catch (error) {
+          console.error("Flashcard Delete Failed:", error);
+          setSyncStatus('error');
       }
   };
 
   const handleManualLogin = (userData: User) => {
+    // This is only for the "Demo Mode", real login is handled by useEffect
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
   };
@@ -187,6 +209,7 @@ function App() {
   const handleLogout = async () => {
     try { await signOut(auth); } catch (error) {}
     setUser(null);
+    setFlashcards([]);
     setActiveView('dashboard');
   };
 
@@ -194,7 +217,7 @@ function App() {
       <div className="min-h-screen bg-black flex items-center justify-center text-white font-mono text-xs">
           <div className="flex flex-col items-center gap-4">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              <span>CONNECTING TO NEURAL DATABASE...</span>
+              <span>CONNECTING TO NEURAL CLOUD...</span>
           </div>
       </div>
   );
@@ -230,8 +253,28 @@ function App() {
         />
       )}
       
-      {/* MOBILE OPTIMIZATION: Use dvh (dynamic viewport height) and add bottom padding for mobile nav */}
       <main className={`flex-1 relative h-[calc(100dvh-80px)] md:h-screen z-10 ${isImmersiveView ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar pb-24 md:pb-0'}`}>
+        
+        {/* SYNC INDICATOR (Top Right) */}
+        {!isImmersiveView && (
+            <div className="absolute top-4 right-4 md:right-8 z-50 pointer-events-none">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white/80 backdrop-blur shadow-sm transition-all ${
+                    syncStatus === 'synced' ? 'border-green-200 text-green-700' : 
+                    syncStatus === 'syncing' ? 'border-blue-200 text-blue-700' : 
+                    'border-gray-200 text-gray-400'
+                }`}>
+                    <div className={`w-2 h-2 rounded-full ${
+                        syncStatus === 'synced' ? 'bg-green-500' : 
+                        syncStatus === 'syncing' ? 'bg-blue-500 animate-pulse' : 
+                        'bg-gray-300'
+                    }`} />
+                    <span className="text-[9px] font-bold uppercase tracking-widest">
+                        {syncStatus === 'synced' ? 'CLOUD LINKED' : syncStatus === 'syncing' ? 'SYNCING...' : 'OFFLINE'}
+                    </span>
+                </div>
+            </div>
+        )}
+
         <div className={`relative z-10 mx-auto ${isImmersiveView ? 'w-full h-full' : 'min-h-full max-w-[1600px]'}`}>
           <AnimatePresence mode="wait">
             <motion.div
