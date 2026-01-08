@@ -21,7 +21,7 @@ import BackgroundFlow from './components/BackgroundFlow';
 import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, setDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore'; 
+import { doc, setDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore'; 
 import { auth, db } from './utils/firebase';
 
 function App() {
@@ -92,7 +92,8 @@ function App() {
                     setFlashcards(dbData.flashcards);
                 }
             } else {
-                setDoc(userDocRef, optimisticUser).catch(err => console.error("Auto-create failed", err));
+                // Create user document if it doesn't exist (merge to be safe)
+                setDoc(userDocRef, optimisticUser, { merge: true }).catch(err => console.error("Auto-create failed", err));
             }
         }, (error) => {
             console.error("Real-time Sync Error (Silent):", error);
@@ -147,12 +148,13 @@ function App() {
     if (user) {
         try {
             const userDocRef = doc(db, "users", user.id);
-            await updateDoc(userDocRef, {
+            // Use setDoc with merge instead of updateDoc to safeguard against missing doc/field
+            // arrayUnion ensures we add to list without duplicating if somehow sent twice
+            await setDoc(userDocRef, {
                 flashcards: arrayUnion(card)
-            });
+            }, { merge: true });
         } catch (error) {
             console.error("Flashcard Save Failed:", error);
-            // Optionally revert state here if strict consistency needed
         }
     }
   };

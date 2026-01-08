@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Save, Target, ChevronRight, Share2, Database, LayoutList, Activity, Cloud, RefreshCw, Loader2, WifiOff, Edit3 } from 'lucide-react';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../utils/firebase';
 import { Language, User } from '../types';
 
@@ -25,8 +25,8 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
   // --- 1. HYBRID STATE INITIALIZATION (INSTANT LOAD) ---
   const getLocalData = (key: string, defaultVal: any) => {
       if (!user) return defaultVal;
-      const saved = localStorage.getItem(key);
       try {
+          const saved = localStorage.getItem(key);
           return saved ? JSON.parse(saved) : defaultVal;
       } catch {
           return defaultVal;
@@ -46,52 +46,61 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
   // Sync States
   const [isSaving, setIsSaving] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  
+  // Ref to prevent loop (Cloud update vs Local typing)
+  const isRemoteUpdate = useRef(false);
 
-  // --- 2. BACKGROUND CLOUD FETCH (Silent Sync) ---
+  // --- 2. REAL-TIME CLOUD LISTENER (onSnapshot) ---
   useEffect(() => {
     if (!user) return;
 
-    const syncFromCloud = async () => {
-        setIsCloudSyncing(true);
-        try {
-            const docRef = doc(db, "neuralLists", user.id);
-            const docSnap = await getDoc(docRef);
+    const docRef = doc(db, "neuralLists", user.id);
+    setIsCloudSyncing(true);
 
-            if (docSnap.exists()) {
-                const cloudData = docSnap.data();
+    // Canlı dinleyici (Real-time Listener)
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        setIsCloudSyncing(false);
+        
+        if (docSnap.exists()) {
+            const cloudData = docSnap.data();
+            
+            // Eğer gelen veri, şu anki halimizden farklıysa güncelle
+            // (Kendi yazdığımız veriyi üzerine yazmamak için basit bir kontrol)
+            const localStr = JSON.stringify({ subject, nodes });
+            const cloudStr = JSON.stringify({ subject: cloudData.subject, nodes: cloudData.nodes });
+
+            if (cloudStr !== localStr) {
+                isRemoteUpdate.current = true; // Bu güncelleme buluttan geldi
                 
-                // Compare Cloud vs Local to decide update
-                const localStr = JSON.stringify({ subject, nodes });
-                const cloudStr = JSON.stringify({ subject: cloudData.subject, nodes: cloudData.nodes });
+                if (cloudData.subject) setSubject(cloudData.subject);
+                if (cloudData.nodes) setNodes(cloudData.nodes);
+                setSetupMode(false);
 
-                if (cloudData.nodes && cloudData.nodes.length > 0 && localStr !== cloudStr) {
-                    // Update state and local cache with newer cloud data
-                    setNodes(cloudData.nodes);
-                    setSubject(cloudData.subject || "");
-                    setSetupMode(false);
-                    
-                    localStorage.setItem(localKey, JSON.stringify({
-                        subject: cloudData.subject,
-                        nodes: cloudData.nodes
-                    }));
-                }
+                // Local cache'i de güncelle ki sonraki açılış hızlı olsun
+                localStorage.setItem(localKey, JSON.stringify({
+                    subject: cloudData.subject,
+                    nodes: cloudData.nodes
+                }));
             }
-        } catch (error) {
-            console.warn("Background Sync Failed (Silent):", error);
-        } finally {
-            setIsCloudSyncing(false);
         }
-    };
+    }, (error) => {
+        console.error("Sync Error:", error);
+        setIsCloudSyncing(false);
+    });
 
-    // Delay slighty to let UI paint first
-    const timer = setTimeout(syncFromCloud, 500);
-    return () => clearTimeout(timer);
-  }, [user]); // Run once on mount per user
+    return () => unsubscribe();
+  }, [user]); 
 
   // --- 3. HYBRID SAVE (Local Instant + Cloud Debounced) ---
   useEffect(() => {
     if (!user || nodes.length === 0) return;
     
+    // Eğer değişiklik buluttan geldiyse, tekrar buluta yazma (Loop önleyici)
+    if (isRemoteUpdate.current) {
+        isRemoteUpdate.current = false;
+        return;
+    }
+
     // 1. Instant Local Save
     localStorage.setItem(localKey, JSON.stringify({ subject, nodes }));
 
@@ -99,6 +108,7 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
     setIsSaving(true);
     const timeout = setTimeout(async () => {
         try {
+            // merge: true kullanarak sadece değişen alanları güncelle
             await setDoc(doc(db, "neuralLists", user.id), {
                 subject: subject,
                 nodes: nodes,
@@ -109,7 +119,7 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
         } finally {
             setIsSaving(false);
         }
-    }, 2000); 
+    }, 1500); // 1.5s gecikme ile yaz
 
     return () => clearTimeout(timeout);
   }, [nodes, subject, user]);
@@ -146,6 +156,8 @@ export default function NeuralList({ language, user }: NeuroMapProps) {
   };
 
   const updateNodeNotes = (id: string, text: string) => {
+    // Kullanıcı elle değiştirdiği için remote flag'i kapat
+    isRemoteUpdate.current = false; 
     setNodes(prev => prev.map(n => n.id === id ? { ...n, notes: text } : n));
   };
 
