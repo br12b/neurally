@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
-import { ArrowRight, ScanLine, AlertCircle, PlayCircle, Lock, Mail, Key, ChevronLeft, UserPlus, LogIn } from 'lucide-react';
+import { ScanLine, AlertCircle, PlayCircle, Mail, Key, ChevronLeft, UserPlus, LogIn } from 'lucide-react';
 import { User } from '../types';
 import BackgroundFlow from './BackgroundFlow';
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
@@ -82,32 +82,40 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           console.error("Email Auth Error:", error);
           let msg = "İşlem başarısız.";
           
-          // Enhanced Error Handling
-          switch (error.code) {
-              case 'auth/wrong-password':
-                  msg = "Hatalı şifre.";
-                  break;
-              case 'auth/user-not-found':
-                  msg = "Kullanıcı bulunamadı. Lütfen kayıt olun.";
-                  break;
-              case 'auth/email-already-in-use':
-                  msg = "Bu e-posta adresi zaten kullanımda.";
-                  break;
-              case 'auth/invalid-email':
-                  msg = "Geçersiz e-posta formatı.";
-                  break;
-              case 'auth/weak-password':
-                  msg = "Şifre çok zayıf. Daha karmaşık bir şifre seçin.";
-                  break;
-              case 'auth/operation-not-allowed':
-                  msg = "E-posta girişi devre dışı (Firebase Konsolunu kontrol edin).";
-                  break;
-              case 'auth/too-many-requests':
-                  msg = "Çok fazla deneme yapıldı. Lütfen biraz bekleyin.";
-                  break;
-              default:
-                  // Show raw error message for unknown errors to help debugging
-                  msg = `Hata: ${error.message}`;
+          if (error.code) {
+            switch (error.code) {
+                case 'auth/email-already-in-use':
+                    msg = "Bu e-posta zaten kullanımda. Giriş yapmayı deneyin.";
+                    break;
+                case 'auth/invalid-email':
+                    msg = "Geçersiz e-posta formatı.";
+                    break;
+                case 'auth/operation-not-allowed':
+                    msg = "Sistem Hatası: E-posta/Şifre girişi Firebase panelinden aktif edilmemiş.";
+                    break;
+                case 'auth/weak-password':
+                    msg = "Şifre çok zayıf. Daha güçlü bir şifre seçin.";
+                    break;
+                case 'auth/user-disabled':
+                    msg = "Bu hesap devre dışı bırakılmış.";
+                    break;
+                case 'auth/user-not-found':
+                    msg = "Kullanıcı bulunamadı. Lütfen kayıt olun.";
+                    break;
+                case 'auth/wrong-password':
+                    msg = "Hatalı şifre.";
+                    break;
+                case 'auth/too-many-requests':
+                    msg = "Çok fazla deneme yapıldı. Lütfen biraz bekleyin.";
+                    break;
+                case 'auth/network-request-failed':
+                    msg = "Ağ hatası. İnternet bağlantınızı kontrol edin.";
+                    break;
+                default:
+                    msg = `Hata Kodu: ${error.code}`;
+            }
+          } else {
+              msg = `Beklenmedik Hata: ${error.message}`;
           }
           
           setErrorMsg(msg);
@@ -188,7 +196,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </div>
 
         {/* AUTH FORMS */}
-        <div className="w-full relative min-h-[200px]">
+        <div className="w-full relative min-h-[220px]">
             <AnimatePresence mode="wait">
                 
                 {/* MODE 1: SELECTION */}
@@ -266,12 +274,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                         <button
                             onClick={handleEmailAuth}
                             disabled={isLoading}
-                            className="w-full bg-white text-black h-14 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors"
+                            className={`w-full h-14 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-colors ${isRegistering ? 'bg-white text-black hover:bg-gray-200' : 'bg-transparent border border-white text-white hover:bg-white hover:text-black'}`}
                         >
                             {isLoading ? (
-                                <div className="w-4 h-4 border-2 border-black rounded-full animate-spin border-t-transparent"/>
+                                <div className="w-4 h-4 border-2 border-current rounded-full animate-spin border-t-transparent"/>
                             ) : (
-                                isRegistering ? <><UserPlus className="w-4 h-4"/> Kayıt Ol & Gir</> : <><LogIn className="w-4 h-4"/> Giriş Yap</>
+                                isRegistering ? <><UserPlus className="w-4 h-4"/> Kayıt Ol</> : <><LogIn className="w-4 h-4"/> Giriş Yap</>
                             )}
                         </button>
 
