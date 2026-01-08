@@ -4,7 +4,7 @@ import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { ArrowRight, Disc, ScanLine, AlertCircle, PlayCircle } from 'lucide-react';
 import { User } from '../types';
 import BackgroundFlow from './BackgroundFlow';
-import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from '../utils/firebase';
 
 interface LoginScreenProps {
@@ -41,11 +41,21 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
   };
 
+  // --- REDIRECT RESULT HANDLER ---
+  // Catch errors arising from signInWithRedirect flow
+  useEffect(() => {
+      getRedirectResult(auth).catch((error) => {
+          console.error("Redirect Auth Error:", error);
+          setErrorMsg(`Yönlendirme Giriş Hatası: ${error.message}`);
+          setIsLoading(false);
+      });
+  }, []);
+
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     setErrorMsg(null);
 
-    // Protocol Check before attempting login
+    // Protocol Check
     if (window.location.protocol === 'file:') {
         setErrorMsg("KRİTİK HATA: Google Girişi dosya sisteminden (file://) çalışmaz. Lütfen projeyi bir yerel sunucu (localhost) üzerinde çalıştırın.");
         setIsLoading(false);
@@ -53,16 +63,20 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
 
     try {
-        // --- MOBILE APP AUTH HANDLER (REDIRECT MODE) ---
+        // --- ROBUST MOBILE DETECTION ---
         const urlParams = new URLSearchParams(window.location.search);
-        const isMobile = urlParams.get('mobile') === 'true';
+        const isMobileParam = urlParams.get('mobile') === 'true';
+        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        const isMobile = isMobileParam || isMobileUA;
 
         if (isMobile) {
-            // Mobil WebView'larda Popup sorun çıkarır, Redirect kullanıyoruz.
-            // Geri dönüşü App.tsx içindeki onAuthStateChanged yakalayacak.
-            sessionStorage.setItem('neurally_mobile_auth', 'true'); // Redirect sonrası hatırlamak için
+            console.log("Mobile environment detected. Using Redirect flow.");
+            // Set flag for App.tsx to handle the return
+            sessionStorage.setItem('neurally_mobile_auth', 'true'); 
             await signInWithRedirect(auth, googleProvider);
-            return; // Sayfa yönleneceği için burası durur.
+            // Function stops here as page redirects
+            return;
         }
         // -----------------------------------------------
 
@@ -101,10 +115,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             friendlyMessage = "Google Girişi aktif değil. Firebase Console > Sign-in method kısmından Google'ı açın.";
         } else if (error.code === 'auth/invalid-api-key') {
             friendlyMessage = "API Anahtarı geçersiz. utils/firebase.ts dosyasını kontrol edin.";
+        } else if (error.message && error.message.includes("Invalid id_token")) {
+            friendlyMessage = "Güvenlik belirteci hatası. Cihaz saatinizi kontrol edin veya tarayıcı önbelleğini temizleyin.";
         }
 
         setErrorMsg(friendlyMessage);
-        setIsLoading(false); // Stop loading to show error and allow Manual/Demo entry
+        setIsLoading(false);
     }
   };
 
