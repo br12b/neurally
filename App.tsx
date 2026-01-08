@@ -20,8 +20,9 @@ import LanguagePath from './components/LanguagePath';
 import BackgroundFlow from './components/BackgroundFlow'; 
 import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from './utils/firebase';
+import { Smartphone, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -33,6 +34,9 @@ function App() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [language, setLanguage] = useState<Language>('tr');
+
+  // --- MOBILE BRIDGE STATE ---
+  const [mobileDeepLink, setMobileDeepLink] = useState<string | null>(null);
 
   // Helper to generate default stats for new users
   const generateDefaultStats = (): UserStats => ({
@@ -55,53 +59,81 @@ function App() {
       ]
   });
 
-  // Firebase Auth Listener
+  // --- INITIALIZATION & AUTH HANDLER ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // CRITICAL FIX: Check if we are in the middle of a Mobile Redirect Flow
-      const isMobileAuthPending = sessionStorage.getItem('neurally_mobile_auth') === 'true';
+    
+    const initAuth = async () => {
+        // 1. Check for Redirect Result (Mobile Bridge Check)
+        try {
+            const result = await getRedirectResult(auth);
+            if (result) {
+                // If we have a redirect result, we check if this was a mobile intent
+                const isMobileSession = sessionStorage.getItem('neurally_mobile_auth') === 'true';
+                
+                if (isMobileSession) {
+                    console.log("Mobile Bridge: Google Credentials Captured");
+                    const credential = GoogleAuthProvider.credentialFromResult(result);
+                    const googleIdToken = credential?.idToken;
+                    const googleAccessToken = credential?.accessToken;
 
-      if (firebaseUser) {
-        // If mobile auth is pending, DO NOT set the user yet.
-        // Keep rendering LoginScreen so it can process getRedirectResult and Deep Link.
-        if (isMobileAuthPending) {
-            console.log("App: Mobile Auth Pending - Holding Dashboard render to allow Redirect processing.");
+                    if (googleIdToken) {
+                        // Construct Deep Link
+                        const deepLink = `neurally.app://google/callback?id_token=${googleIdToken}&access_token=${googleAccessToken}`;
+                        setMobileDeepLink(deepLink);
+                        
+                        // Attempt auto-redirect
+                        window.location.href = deepLink;
+                        
+                        setIsLoading(false);
+                        return; // HALT HERE. Do not load Dashboard.
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Redirect Error:", error);
+        }
+
+        // 2. Standard Auth Listener (Desktop / Web Fallback)
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            // If we are showing the Mobile Bridge, ignore standard auth changes to prevent flickering
+            if (mobileDeepLink) return;
+
+            if (firebaseUser) {
+                const localStatsKey = `neurally_stats_${firebaseUser.uid}`;
+                const savedStats = localStorage.getItem(localStatsKey);
+                const stats = savedStats ? JSON.parse(savedStats) : generateDefaultStats();
+
+                const appUser: User = {
+                    id: firebaseUser.uid,
+                    name: firebaseUser.displayName || "Anonymous Scholar",
+                    email: firebaseUser.email || "No Email",
+                    avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'U'}&background=000000&color=fff`,
+                    tier: 'Scholar',
+                    stats: stats
+                };
+                setUser(appUser);
+            } else {
+                // Check Local Storage Fallback
+                const storedUser = localStorage.getItem('neurally_user');
+                if (storedUser) {
+                    const parsedUser = JSON.parse(storedUser);
+                    if (!parsedUser.stats) parsedUser.stats = generateDefaultStats();
+                    setUser(parsedUser);
+                } else {
+                    setUser(null);
+                    setFlashcards([]);
+                }
+            }
             setIsLoading(false);
-            return; 
-        }
+        });
 
-        // Retrieve stats from local storage if available to persist game state
-        const localStatsKey = `neurally_stats_${firebaseUser.uid}`;
-        const savedStats = localStorage.getItem(localStatsKey);
-        const stats = savedStats ? JSON.parse(savedStats) : generateDefaultStats();
+        return unsubscribe;
+    };
 
-        const appUser: User = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || "Anonymous Scholar",
-            email: firebaseUser.email || "No Email",
-            avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${firebaseUser.displayName || 'U'}&background=000000&color=fff`,
-            tier: 'Scholar',
-            stats: stats
-        };
-        setUser(appUser);
-      } else {
-        const storedUser = localStorage.getItem('neurally_user');
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          if (!parsedUser.stats) parsedUser.stats = generateDefaultStats();
-          setUser(parsedUser);
-        } else {
-          setUser(null);
-          setFlashcards([]); 
-        }
-      }
-      setIsLoading(false);
-    });
+    initAuth();
+  }, [mobileDeepLink]); // Re-run only if deep link state changes (rare)
 
-    return () => unsubscribe();
-  }, []);
-
-  // Sync Stats to LocalStorage whenever user changes
+  // Sync Stats to LocalStorage
   useEffect(() => {
       if (user && user.stats) {
           const localStatsKey = `neurally_stats_${user.id}`;
@@ -110,22 +142,17 @@ function App() {
       }
   }, [user]);
 
-  // LOAD User Flashcards
+  // Flashcards Sync
   useEffect(() => {
     if (user) {
         const key = `neurally_flashcards_${user.id}`;
         const saved = localStorage.getItem(key);
         if (saved) {
-            try {
-                setFlashcards(JSON.parse(saved));
-            } catch (e) { console.error("Data Load Error", e); }
-        } else {
-            setFlashcards([]);
-        }
+            try { setFlashcards(JSON.parse(saved)); } catch (e) {}
+        } else { setFlashcards([]); }
     }
   }, [user]);
 
-  // SAVE User Flashcards
   useEffect(() => {
     if (user && flashcards.length > 0) {
         const key = `neurally_flashcards_${user.id}`;
@@ -142,49 +169,68 @@ function App() {
     setFlashcards(prev => [card, ...prev]);
   };
 
-  // --- GAMIFICATION HANDLER ---
   const handleAddXP = (amount: number) => {
       if (!user || !user.stats) return;
-      
       const newXP = user.stats.currentXP + amount;
       let newLevel = user.stats.level;
       let nextXP = user.stats.nextLevelXP;
-
-      // Simple Level Up Logic
       if (newXP >= nextXP) {
           newLevel += 1;
           nextXP = Math.floor(nextXP * 1.5);
       }
-
       const updatedUser = {
           ...user,
-          stats: {
-              ...user.stats,
-              currentXP: newXP,
-              level: newLevel,
-              nextLevelXP: nextXP
-          }
+          stats: { ...user.stats, currentXP: newXP, level: newLevel, nextLevelXP: nextXP }
       };
       setUser(updatedUser);
   };
 
   const handleLogin = (userData: User) => {
-    // This is called from LoginScreen when NOT in mobile redirect mode
     if(!userData.stats) userData.stats = generateDefaultStats();
     setUser(userData);
     localStorage.setItem('neurally_user', JSON.stringify(userData));
   };
 
   const handleLogout = async () => {
-    try {
-        await signOut(auth);
-    } catch (error) {
-        console.error("Logout Error:", error);
-    }
+    try { await signOut(auth); } catch (error) {}
     setUser(null);
     localStorage.removeItem('neurally_user');
     setActiveView('dashboard');
   };
+
+  // --- MOBILE BRIDGE VIEW ---
+  // This renders only when we successfully got a token for mobile redirect
+  if (mobileDeepLink) {
+      return (
+          <div className="min-h-screen w-full bg-black text-white flex flex-col items-center justify-center p-8 text-center font-sans">
+              <div className="w-24 h-24 bg-green-500/10 rounded-full flex items-center justify-center mb-8 border border-green-500/30">
+                  <CheckCircle2 className="w-10 h-10 text-green-500" />
+              </div>
+              <h1 className="text-3xl font-serif mb-4">Giriş Başarılı</h1>
+              <p className="text-gray-400 mb-12 max-w-xs mx-auto text-sm leading-relaxed">
+                  Hesabınız doğrulandı. Mobil uygulamaya dönmek için aşağıdaki butona tıklayın.
+              </p>
+              
+              <a 
+                href={mobileDeepLink}
+                className="w-full max-w-sm py-4 bg-white text-black font-bold uppercase tracking-widest rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3"
+              >
+                  <Smartphone className="w-5 h-5" /> Uygulamayı Aç
+              </a>
+              
+              <button 
+                onClick={() => {
+                    // Fallback to web dashboard if deep link fails
+                    setMobileDeepLink(null); 
+                    sessionStorage.removeItem('neurally_mobile_auth');
+                }}
+                className="mt-6 text-xs text-gray-500 hover:text-white underline decoration-gray-700 underline-offset-4"
+              >
+                  Tarayıcıda Devam Et
+              </button>
+          </div>
+      );
+  }
 
   if (isLoading) return null;
 
@@ -192,16 +238,13 @@ function App() {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  // Views that need full screen or dark mode specifically
   const isImmersiveView = activeView === 'speedrun';
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen text-ink-900 selection:bg-black selection:text-white overflow-hidden font-sans bg-transparent relative">
       
-      {/* Global Ambient Background - Hide in immersive modes for performance/aesthetic */}
       {!isImmersiveView && <BackgroundFlow />}
 
-      {/* DESKTOP SIDEBAR */}
       {activeView !== 'speedrun' && (
         <Sidebar 
           activeView={activeView} 
@@ -213,7 +256,6 @@ function App() {
         />
       )}
 
-      {/* MOBILE NAVIGATION (Only visible on small screens) */}
       {activeView !== 'speedrun' && (
         <MobileNavigation 
           activeView={activeView}
@@ -234,55 +276,16 @@ function App() {
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }} 
               className="h-full"
             >
-              {activeView === 'dashboard' && (
-                <Dashboard 
-                  user={user} 
-                  onQuestionsGenerated={handleQuestionsGenerated}
-                  language={language}
-                />
-              )}
-              {activeView === 'neurallist' && (
-                <NeuroMap language={language} user={user} />
-              )}
-              {activeView === 'quiz' && (
-                <NeurallyQuiz 
-                  key={questions[0]?.id || 'quiz'} 
-                  questions={questions} 
-                  onRedirectToDashboard={() => setActiveView('dashboard')}
-                  onAddToFlashcards={handleAddFlashcard}
-                />
-              )}
-              {activeView === 'speedrun' && (
-                <SpeedRun 
-                    language={language} 
-                    user={user} 
-                    onExit={() => setActiveView('dashboard')} 
-                />
-              )}
-              {activeView === 'flashcards' && (
-                <Flashcards 
-                  cards={flashcards} 
-                  onAddCard={handleAddFlashcard}
-                />
-              )}
-              {activeView === 'schedule' && (
-                <Schedule language={language} user={user} />
-              )}
-              {activeView === 'keypoints' && (
-                <KeyPoints language={language} />
-              )}
-              {activeView === 'podcast' && (
-                <NeuralPodcast language={language} />
-              )}
-              {activeView === 'edu' && (
-                <EduClassroom language={language} user={user} />
-              )}
-              {activeView === 'language' && (
-                <LanguagePath 
-                    language={language} 
-                    onAddXP={handleAddXP} // PASSING XP HANDLER
-                />
-              )}
+              {activeView === 'dashboard' && <Dashboard user={user} onQuestionsGenerated={handleQuestionsGenerated} language={language} />}
+              {activeView === 'neurallist' && <NeuroMap language={language} user={user} />}
+              {activeView === 'quiz' && <NeurallyQuiz key={questions[0]?.id || 'quiz'} questions={questions} onRedirectToDashboard={() => setActiveView('dashboard')} onAddToFlashcards={handleAddFlashcard} />}
+              {activeView === 'speedrun' && <SpeedRun language={language} user={user} onExit={() => setActiveView('dashboard')} />}
+              {activeView === 'flashcards' && <Flashcards cards={flashcards} onAddCard={handleAddFlashcard} />}
+              {activeView === 'schedule' && <Schedule language={language} user={user} />}
+              {activeView === 'keypoints' && <KeyPoints language={language} />}
+              {activeView === 'podcast' && <NeuralPodcast language={language} />}
+              {activeView === 'edu' && <EduClassroom language={language} user={user} />}
+              {activeView === 'language' && <LanguagePath language={language} onAddXP={handleAddXP} />}
               {activeView === 'pomodoro' && <Pomodoro />}
               {activeView === 'notes' && <SmartNotes user={user} />}
               {activeView === 'report' && <Report user={user} language={language} />}
