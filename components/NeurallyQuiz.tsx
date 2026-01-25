@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, ArrowRight, RotateCw, Trophy, LayoutGrid, Brain, Save, PlusCircle, AlertCircle, RefreshCcw, Search, Globe, ExternalLink, Loader2, StopCircle } from 'lucide-react';
+import { Check, X, ArrowRight, RotateCw, Trophy, LayoutGrid, Brain, Save, PlusCircle, AlertCircle, RefreshCcw, Search, Globe, ExternalLink, Loader2, StopCircle, BookOpen } from 'lucide-react';
 import { createAIClient } from '../utils/ai';
 import { Question, QuizState, Flashcard } from '../types';
 
@@ -366,6 +366,18 @@ const NeurallyQuiz: React.FC<NeurallyQuizProps> = ({ questions, onRedirectToDash
             }}
             className="space-y-6 md:space-y-8 w-full pb-20"
           >
+            {/* CONTEXT DISPLAY (New Feature) */}
+            {currentQuestion.context && (
+                <div className="bg-gray-50 border-l-4 border-black p-4 mb-4 rounded-r-lg shadow-sm">
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        <BookOpen className="w-3 h-3" /> Context
+                    </div>
+                    <p className="text-sm md:text-base text-gray-700 font-serif italic leading-relaxed">
+                        "{currentQuestion.context}"
+                    </p>
+                </div>
+            )}
+
             <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl font-medium text-black leading-tight">
               {currentQuestion.text}
             </h1>

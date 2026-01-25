@@ -1,214 +1,425 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Globe, User as UserIcon, BookOpen, Coffee, Hand, Zap, Users, Filter, Search } from 'lucide-react';
+import { Globe, Zap, Radio, Power, Target, Cpu, Activity, Lock, Users, Wifi, X, BarChart3, ScanLine, Clock, Shield } from 'lucide-react';
 import { User, Language } from '../types';
+import { doc, setDoc, onSnapshot, collection, query, deleteDoc } from 'firebase/firestore';
+import { db } from '../utils/firebase';
 
 interface TheConstructProps {
   user: User;
   language: Language;
 }
 
-interface Peer {
-  id: string;
+interface OnlinePeer {
+  uid: string;
   name: string;
-  status: 'focusing' | 'break';
+  avatar: string;
   topic: string;
-  duration: number; // minutes
-  location: string;
-  avatarColor: string;
+  status: 'focusing' | 'idle';
+  lastActive: number;
+  stats: {
+      level: number;
+      todayFocus: number;
+      rank: string;
+  };
 }
 
-// Realistic Data Generation
-const NAMES = [
-    "Alex M.", "Selin K.", "Hiroshi T.", "Elena R.", "Marcus D.", "Zeynep Y.", 
-    "Chen W.", "Sarah J.", "David B.", "Caner Ö.", "Lisa P.", "Omar F."
-];
+// --- VISUAL COMPONENTS ---
 
-const TOPICS = [
-    "Med School: Anatomy", "Calculus II", "Civil Procedure Law", "Python Algorithms", 
-    "History of Art", "Biochemistry", "Macroeconomics", "Quantum Physics", "Literature"
-];
+// 1. NEURAL AVATAR (The "Logo" Replacement)
+const NeuralAvatar = ({ url, size = "md", active = false, level = 1 }: { url: string, size?: "sm" | "md" | "lg", active?: boolean, level?: number }) => {
+    const dim = size === 'sm' ? 40 : size === 'md' ? 64 : 96;
+    const ringColor = active ? "border-cyan-500" : "border-gray-700";
+    
+    return (
+        <div className="relative flex items-center justify-center" style={{ width: dim + 20, height: dim + 20 }}>
+            {/* Outer Rotating Ring */}
+            <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: active ? 10 : 20, ease: "linear", repeat: Infinity }}
+                className={`absolute inset-0 rounded-full border border-dashed ${ringColor} opacity-40`}
+            />
+            
+            {/* Inner Counter-Rotating Ring */}
+            <motion.div 
+                animate={{ rotate: -360 }}
+                transition={{ duration: 15, ease: "linear", repeat: Infinity }}
+                className={`absolute inset-2 rounded-full border border-t-transparent border-l-transparent ${active ? 'border-cyan-400' : 'border-gray-600'} opacity-60`}
+            />
 
-const LOCATIONS = ["Istanbul", "London", "Berlin", "Tokyo", "New York", "Toronto", "Paris", "Seoul"];
+            {/* Level Badge (Orbiting) */}
+            <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: 8, ease: "linear", repeat: Infinity }}
+                className="absolute inset-0"
+            >
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 w-2 h-2 bg-white rounded-full shadow-[0_0_10px_white]"></div>
+            </motion.div>
 
-const COLORS = ["bg-blue-100 text-blue-700", "bg-orange-100 text-orange-700", "bg-purple-100 text-purple-700", "bg-emerald-100 text-emerald-700", "bg-rose-100 text-rose-700"];
+            {/* The Image */}
+            <div className="relative z-10 rounded-full overflow-hidden border-2 border-black bg-black" style={{ width: dim, height: dim }}>
+                <img src={url} alt="User" className={`w-full h-full object-cover ${active ? '' : 'grayscale'}`} />
+            </div>
+
+            {/* Status Dot */}
+            {active && (
+                <div className="absolute bottom-1 right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-black z-20 shadow-[0_0_10px_#22c55e]"></div>
+            )}
+        </div>
+    );
+};
+
+// 2. PROFILE HUD (Detailed View)
+const ProfileHUD = ({ peer, onClose, isTr, onNudge }: { peer: OnlinePeer, onClose: () => void, isTr: boolean, onNudge: () => void }) => {
+    return (
+        <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={onClose}
+        >
+            <div 
+                className="w-full max-w-sm bg-[#0A0A0A] border border-gray-800 rounded-[2rem] overflow-hidden relative shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header Background */}
+                <div className="h-32 bg-gradient-to-b from-gray-900 to-black relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,255,255,0.05)_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+                    <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-black/50 rounded-full text-white hover:bg-white hover:text-black transition-colors z-20">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="px-8 pb-8 -mt-16 relative z-10 flex flex-col items-center">
+                    <NeuralAvatar url={peer.avatar} size="lg" active={peer.status === 'focusing'} />
+                    
+                    <h3 className="font-serif text-2xl text-white mt-4">{peer.name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="px-2 py-0.5 bg-gray-800 rounded text-[10px] font-bold uppercase text-gray-400 tracking-wider">
+                            LVL {peer.stats.level}
+                        </span>
+                        <span className="text-cyan-500 text-xs font-mono">{peer.stats.rank}</span>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-4 w-full mt-8">
+                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl text-center">
+                            <Clock className="w-5 h-5 text-gray-400 mx-auto mb-2" />
+                            <div className="text-xl font-mono text-white">{peer.stats.todayFocus}m</div>
+                            <div className="text-[9px] text-gray-500 uppercase tracking-widest">{isTr ? 'BUGÜN' : 'TODAY'}</div>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-4 rounded-2xl text-center">
+                            <Target className="w-5 h-5 text-gray-400 mx-auto mb-2" />
+                            <div className="text-white text-xs line-clamp-2 min-h-[1.75rem] flex items-center justify-center font-medium">
+                                {peer.topic || (isTr ? 'Genel Çalışma' : 'General Study')}
+                            </div>
+                            <div className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">{isTr ? 'ODAK' : 'FOCUS'}</div>
+                        </div>
+                    </div>
+
+                    {/* Action */}
+                    <button 
+                        onClick={() => { onNudge(); onClose(); }}
+                        className="w-full mt-6 py-4 bg-white text-black font-bold uppercase tracking-[0.2em] rounded-xl hover:bg-cyan-400 transition-colors shadow-lg flex items-center justify-center gap-2 text-xs"
+                    >
+                        <Zap className="w-4 h-4" /> {isTr ? 'SİNYAL GÖNDER' : 'SEND SIGNAL'}
+                    </button>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
 
 export default function TheConstruct({ user, language }: TheConstructProps) {
   const isTr = language === 'tr';
   
-  const [peers, setPeers] = useState<Peer[]>([]);
+  // State
+  const [peers, setPeers] = useState<OnlinePeer[]>([]);
   const [userTopic, setUserTopic] = useState("");
-  const [isUserFocusing, setIsUserFocusing] = useState(false);
-  const [activeCount, setActiveCount] = useState(1240);
-  const [nudgedPeers, setNudgedPeers] = useState<Set<string>>(new Set());
+  const [isConnected, setIsConnected] = useState(false);
+  const [sessionTime, setSessionTime] = useState(0);
+  const [selectedPeer, setSelectedPeer] = useState<OnlinePeer | null>(null);
+  
+  // Refs
+  const heartbeatRef = useRef<any>(null);
+  const timerRef = useRef<any>(null);
 
-  // Initialize Hub Data
+  // --- 1. REAL-TIME PRESENCE SYSTEM ---
   useEffect(() => {
-      const initialPeers: Peer[] = Array.from({ length: 9 }).map((_, i) => ({
-          id: `peer-${i}`,
-          name: NAMES[i % NAMES.length],
-          status: Math.random() > 0.2 ? 'focusing' : 'break',
-          topic: TOPICS[Math.floor(Math.random() * TOPICS.length)],
-          duration: Math.floor(Math.random() * 90) + 10,
-          location: LOCATIONS[Math.floor(Math.random() * LOCATIONS.length)],
-          avatarColor: COLORS[Math.floor(Math.random() * COLORS.length)]
-      }));
-      setPeers(initialPeers);
-
-      // Live Count Simulation
-      const interval = setInterval(() => {
-        setActiveCount(prev => prev + Math.floor(Math.random() * 5) - 2);
-      }, 4000);
-      return () => clearInterval(interval);
-  }, []);
-
-  const handleNudge = (peerId: string) => {
-      if(nudgedPeers.has(peerId)) return;
-      setNudgedPeers(prev => new Set(prev).add(peerId));
+      const q = query(collection(db, "hub_presence"));
       
-      // Reset after animation
-      setTimeout(() => {
-          setNudgedPeers(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(peerId);
-              return newSet;
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+          const now = Date.now();
+          const activePeers: OnlinePeer[] = [];
+          
+          snapshot.forEach((doc) => {
+              const data = doc.data();
+              // Filter stale users (> 2 mins) & self
+              if (now - data.lastActive < 120000 && data.uid !== user.id) {
+                  activePeers.push({
+                      uid: data.uid,
+                      name: data.name,
+                      avatar: data.avatar,
+                      topic: data.topic,
+                      status: data.status,
+                      lastActive: data.lastActive,
+                      stats: data.stats || { level: 1, todayFocus: 0, rank: 'Novice' }
+                  });
+              }
           });
-      }, 2000);
+          
+          setPeers(activePeers);
+      });
+
+      return () => {
+          unsubscribe();
+          stopHeartbeat();
+      };
+  }, [user.id]);
+
+  // --- 2. CONNECTION HANDLERS ---
+  const startSession = async () => {
+      if (!userTopic.trim()) {
+          alert(isTr ? "Lütfen bir odak konusu girin." : "Please enter a focus topic.");
+          return;
+      }
+
+      setIsConnected(true);
+      sendHeartbeat(); // Immediate first beat
+
+      // Start Heartbeat Loop (30s)
+      heartbeatRef.current = setInterval(sendHeartbeat, 30000);
+
+      // Start Local Timer
+      timerRef.current = setInterval(() => {
+          setSessionTime(prev => prev + 1);
+      }, 1000);
   };
 
-  const toggleSession = () => {
-      setIsUserFocusing(!isUserFocusing);
+  const endSession = async () => {
+      setIsConnected(false);
+      setSessionTime(0);
+      stopHeartbeat();
+      try {
+          await deleteDoc(doc(db, "hub_presence", user.id));
+      } catch (e) {
+          console.error("Disconnect error", e);
+      }
+  };
+
+  const sendHeartbeat = async () => {
+      // Calculate Stats to share with the world
+      const currentStats = {
+          level: user.stats?.level || 1,
+          todayFocus: Math.floor((user.stats?.totalFocusMinutes || 0) + (sessionTime / 60)), // Add current session approximation
+          rank: user.stats?.rankTitle || "Novice"
+      };
+
+      try {
+          await setDoc(doc(db, "hub_presence", user.id), {
+              uid: user.id,
+              name: user.name,
+              avatar: user.avatar,
+              topic: userTopic,
+              status: 'focusing',
+              lastActive: Date.now(),
+              stats: currentStats // SHARING REAL DATA
+          }, { merge: true });
+      } catch (e) {
+          console.error("Heartbeat failed", e);
+      }
+  };
+
+  const stopHeartbeat = () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  const formatTime = (s: number) => {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div className="h-full w-full bg-gray-50 text-ink-900 flex flex-col overflow-hidden">
+    <div className="h-full w-full bg-[#050505] text-white flex flex-col relative overflow-hidden font-sans selection:bg-cyan-500 selection:text-black">
       
-      {/* HEADER */}
-      <div className="px-8 py-6 bg-white border-b border-gray-200 flex justify-between items-center shadow-sm z-10">
+      <AnimatePresence>
+          {selectedPeer && (
+              <ProfileHUD 
+                  peer={selectedPeer} 
+                  onClose={() => setSelectedPeer(null)} 
+                  isTr={isTr} 
+                  onNudge={() => alert(isTr ? "Sinyal gönderildi." : "Signal sent.")} 
+              />
+          )}
+      </AnimatePresence>
+
+      {/* 1. BACKGROUND EFFECTS */}
+      <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+      </div>
+
+      {/* 2. HEADER */}
+      <div className="px-8 py-6 flex justify-between items-center border-b border-white/10 bg-black/50 backdrop-blur-md relative z-20">
           <div>
-              <h1 className="font-serif text-3xl text-black">
-                  {isTr ? 'Küresel Çalışma Salonu' : 'Global Study Hub'}
+              <h1 className="font-serif text-2xl md:text-3xl text-white tracking-wider flex items-center gap-3">
+                  <Globe className={`w-6 h-6 ${isConnected ? 'text-cyan-400 animate-pulse' : 'text-gray-600'}`} />
+                  THE NEXUS
               </h1>
-              <p className="text-gray-400 text-xs mt-1 font-medium flex items-center gap-2">
-                  <span className="flex items-center gap-1.5">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                      </span>
-                      {activeCount.toLocaleString()} {isTr ? 'Öğrenci Çevrimiçi' : 'Scholars Online'}
-                  </span>
-                  <span className="text-gray-300">|</span>
-                  <span className="flex items-center gap-1">
-                      <Globe className="w-3 h-3" /> Worldwide
-                  </span>
-              </p>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-4">
-               <div className="bg-gray-100 px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-medium text-gray-500 border border-gray-200">
-                   <Filter className="w-3 h-3" />
-                   {isTr ? 'Tüm Konular' : 'All Topics'}
-               </div>
+              <div className="flex items-center gap-4 mt-1">
+                  <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                      {isConnected ? (isTr ? 'AĞA BAĞLANDI' : 'UPLINK ESTABLISHED') : (isTr ? 'ÇEVRİMDIŞI' : 'OFFLINE')}
+                  </p>
+                  <span className="text-[10px] font-mono text-cyan-700/50">///</span>
+                  <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                      <Users className="w-3 h-3" /> {peers.length} {isTr ? 'AKTİF HÜCRE' : 'ACTIVE NODES'}
+                  </p>
+              </div>
           </div>
       </div>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-          <div className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-              
-              {/* USER CARD (MY DESK) */}
+      {/* 3. MAIN INTERFACE */}
+      <div className="flex-1 flex flex-col items-center p-8 relative z-10 overflow-y-auto custom-scrollbar">
+          
+          {/* USER COCKPIT */}
+          <div className="w-full max-w-4xl mb-20 mt-10 relative">
+              <div className="absolute top-1/2 left-[-100px] right-[-100px] h-px bg-gradient-to-r from-transparent via-cyan-900/30 to-transparent pointer-events-none"></div>
+
               <motion.div 
-                 layout
-                 className="col-span-1 md:col-span-2 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[200px]"
+                  layout
+                  className={`relative z-20 bg-black border ${isConnected ? 'border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.1)]' : 'border-white/10'} p-8 md:p-12 rounded-[2rem] transition-all duration-500 overflow-hidden`}
               >
-                  <div className="absolute top-0 right-0 p-3">
-                      <div className="px-2 py-1 bg-black text-white text-[10px] font-bold uppercase tracking-widest rounded-md">
-                          {isTr ? 'Masam' : 'My Desk'}
-                      </div>
-                  </div>
+                  {/* Digital Noise Overlay */}
+                  {isConnected && <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20 pointer-events-none"></div>}
 
-                  <div className="flex items-start gap-4">
-                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center border border-gray-200">
-                          <UserIcon className="w-8 h-8 text-gray-400" />
+                  <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
+                      
+                      {/* My Avatar */}
+                      <div className="relative shrink-0">
+                          <NeuralAvatar url={user.avatar} size="lg" active={isConnected} level={user.stats?.level} />
+                          {isConnected && <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-cyan-900/80 backdrop-blur text-cyan-200 text-[9px] px-3 py-1 rounded-full font-mono border border-cyan-500/30 whitespace-nowrap">BROADCASTING</div>}
                       </div>
-                      <div className="flex-1">
-                          <h3 className="font-serif text-xl font-medium text-black">{user.name}</h3>
-                          <input 
-                              value={userTopic}
-                              onChange={(e) => setUserTopic(e.target.value)}
-                              placeholder={isTr ? "Ne çalışıyorsun?" : "What are you studying?"}
-                              className="w-full mt-2 text-sm text-gray-600 placeholder:text-gray-300 border-none focus:ring-0 p-0 bg-transparent font-medium"
-                          />
-                      </div>
-                  </div>
 
-                  <div className="mt-6 flex items-center gap-4">
-                      <button 
-                        onClick={toggleSession}
-                        className={`flex-1 py-3 rounded-lg font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isUserFocusing ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' : 'bg-black text-white hover:bg-gray-800'}`}
-                      >
-                          {isUserFocusing ? (
-                             <><Coffee className="w-4 h-4" /> {isTr ? 'Mola Ver' : 'Take Break'}</>
+                      {/* Inputs / Status */}
+                      <div className="flex-1 text-center md:text-left w-full">
+                          {isConnected ? (
+                              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                  <label className="text-[10px] font-bold text-cyan-500 uppercase tracking-widest mb-1 block flex items-center justify-center md:justify-start gap-2">
+                                      <Activity className="w-3 h-3" /> CURRENT OBJECTIVE
+                                  </label>
+                                  <h2 className="text-3xl md:text-4xl font-serif text-white mb-2">{userTopic}</h2>
+                                  <div className="flex items-center justify-center md:justify-start gap-3">
+                                      <div className="font-mono text-2xl text-gray-300 tabular-nums bg-white/5 px-3 py-1 rounded">
+                                          {formatTime(sessionTime)}
+                                      </div>
+                                      <span className="text-[10px] text-gray-600 animate-pulse">/// SYNCED</span>
+                                  </div>
+                              </motion.div>
                           ) : (
-                             <><BookOpen className="w-4 h-4" /> {isTr ? 'Odaklan' : 'Start Focus'}</>
+                              <div className="w-full">
+                                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2 block flex items-center gap-2 justify-center md:justify-start">
+                                      <Target className="w-3 h-3" /> {isTr ? 'HEDEF TANIMLA' : 'DEFINE OBJECTIVE'}
+                                  </label>
+                                  <input 
+                                      value={userTopic}
+                                      onChange={(e) => setUserTopic(e.target.value)}
+                                      placeholder={isTr ? "Ne üzerinde çalışıyorsun?" : "Identify your task..."}
+                                      className="w-full bg-transparent border-b border-gray-700 py-2 text-xl md:text-2xl font-serif text-white placeholder:text-gray-700 focus:border-cyan-500 outline-none text-center md:text-left transition-colors"
+                                  />
+                              </div>
                           )}
-                      </button>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="shrink-0 w-full md:w-auto">
+                          <button 
+                              onClick={isConnected ? endSession : startSession}
+                              className={`w-full md:w-auto px-8 py-6 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3
+                                  ${isConnected 
+                                      ? 'bg-red-500/10 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white' 
+                                      : 'bg-white text-black hover:scale-105 hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]'
+                                  }`}
+                          >
+                              {isConnected ? (
+                                  <><Power className="w-4 h-4" /> {isTr ? 'BAĞLANTIYI KES' : 'DISCONNECT'}</>
+                              ) : (
+                                  <><Zap className="w-4 h-4" /> {isTr ? 'SİSTEME BAĞLAN' : 'JACK IN'}</>
+                              )}
+                          </button>
+                      </div>
                   </div>
               </motion.div>
+          </div>
 
-              {/* PEER CARDS */}
-              <AnimatePresence>
-                  {peers.map((peer) => (
-                      <motion.div
-                         key={peer.id}
-                         initial={{ opacity: 0, scale: 0.9 }}
-                         animate={{ opacity: 1, scale: 1 }}
-                         className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow relative group"
-                      >
-                          <div className="flex justify-between items-start mb-4">
-                              <div className="flex items-center gap-3">
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${peer.avatarColor}`}>
-                                      {peer.name.charAt(0)}
+          {/* THE HIVE (Grid) */}
+          <div className="w-full max-w-[1400px]">
+              <div className="flex items-center gap-4 mb-8">
+                  <div className="h-px bg-white/10 flex-1"></div>
+                  <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                      <Wifi className="w-3 h-3" /> {isTr ? 'KÜRESEL AĞ' : 'GLOBAL NETWORK'}
+                  </span>
+                  <div className="h-px bg-white/10 flex-1"></div>
+              </div>
+
+              {peers.length === 0 ? (
+                  <div className="text-center py-20 border border-dashed border-white/10 rounded-3xl bg-white/5">
+                      <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-800">
+                          <Radio className="w-6 h-6 text-gray-600 animate-pulse" />
+                      </div>
+                      <h3 className="text-gray-400 font-serif text-xl mb-2">
+                          {isTr ? 'Ağ Sessiz' : 'Network Silent'}
+                      </h3>
+                      <p className="text-gray-600 text-sm max-w-md mx-auto">
+                          {isTr 
+                              ? 'Şu anda bağlı başka düğüm yok. İlk sinyali sen başlat.' 
+                              : 'No other nodes active. Initiate the first signal to populate the grid.'}
+                      </p>
+                  </div>
+              ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                      <AnimatePresence>
+                          {peers.map((peer) => (
+                              <motion.div
+                                  layout
+                                  key={peer.uid}
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.8 }}
+                                  onClick={() => setSelectedPeer(peer)}
+                                  className="group relative bg-[#0A0A0A] border border-white/10 p-6 rounded-3xl hover:border-cyan-500/50 transition-colors cursor-pointer flex flex-col items-center text-center"
+                              >
+                                  {/* Peer Avatar */}
+                                  <div className="mb-4">
+                                      <NeuralAvatar url={peer.avatar} size="md" active={peer.status === 'focusing'} level={peer.stats.level} />
                                   </div>
-                                  <div>
-                                      <h4 className="font-bold text-sm text-gray-900">{peer.name}</h4>
-                                      <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                                          {peer.location}
+                                  
+                                  <div className="w-full">
+                                      <div className="text-white text-sm font-bold truncate mb-1">{peer.name}</div>
+                                      <div className="text-[10px] text-gray-500 font-mono flex justify-center gap-2">
+                                          <span>LVL {peer.stats.level}</span>
+                                          <span className="text-cyan-600">|</span>
+                                          <span>{Math.floor((Date.now() - peer.lastActive) / 1000 / 60)}m ago</span>
+                                      </div>
+                                  </div>
+                                  
+                                  <div className="mt-3 w-full bg-white/5 rounded-lg p-2 border border-white/5 group-hover:bg-white/10 transition-colors">
+                                      <p className="text-[10px] text-gray-300 line-clamp-1 group-hover:text-cyan-400 transition-colors font-medium">
+                                          {peer.topic}
                                       </p>
                                   </div>
-                              </div>
-                              <div className={`w-2 h-2 rounded-full ${peer.status === 'focusing' ? 'bg-green-500' : 'bg-yellow-400'}`}></div>
-                          </div>
 
-                          <div className="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-100">
-                              <p className="text-xs font-medium text-gray-700 line-clamp-1" title={peer.topic}>
-                                  {peer.topic}
-                              </p>
-                              <div className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
-                                  <Zap className="w-3 h-3" />
-                                  {peer.duration}m
-                              </div>
-                          </div>
-
-                          <button 
-                             onClick={() => handleNudge(peer.id)}
-                             className={`w-full py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2
-                                ${nudgedPeers.has(peer.id) 
-                                    ? 'bg-green-50 text-green-600 border-green-100' 
-                                    : 'border-gray-100 text-gray-400 hover:text-black hover:border-gray-300'
-                                }`}
-                          >
-                             {nudgedPeers.has(peer.id) ? (
-                                 <>{isTr ? 'GÖNDERİLDİ' : 'SENT'} <Hand className="w-3 h-3" /></>
-                             ) : (
-                                 <>{isTr ? 'KOLAY GELSİN DE' : 'NUDGE'} <Hand className="w-3 h-3" /></>
-                             )}
-                          </button>
-                      </motion.div>
-                  ))}
-              </AnimatePresence>
-
+                                  {/* Connector Line Effect on Hover */}
+                                  <div className="absolute inset-0 border-2 border-cyan-500/0 rounded-3xl group-hover:border-cyan-500/20 pointer-events-none transition-all scale-105 group-hover:scale-100"></div>
+                              </motion.div>
+                          ))}
+                      </AnimatePresence>
+                  </div>
+              )}
           </div>
+
       </div>
     </div>
   );

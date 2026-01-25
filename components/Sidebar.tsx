@@ -16,8 +16,9 @@ import {
   HelpCircle, 
   LogOut,
   ChevronRight,
-  Swords, // Changed from School
-  Languages
+  Swords, 
+  Languages,
+  Globe // New Icon
 } from 'lucide-react';
 import { AppView, User, Language } from '../types';
 import { translations } from '../utils/translations';
@@ -110,6 +111,7 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
 
   const menuItems = [
     { id: 'dashboard', icon: LayoutGrid, label: t.dashboard },
+    { id: 'hub', icon: Globe, label: t.hub }, // New Item
     { id: 'quiz', icon: BrainCircuit, label: t.quiz },
     { id: 'language', icon: Languages, label: t.language },
     { id: 'podcast', icon: AudioLines, label: t.podcast },
@@ -118,7 +120,7 @@ export default function Sidebar({ activeView, onChangeView, user, onLogout, lang
     { id: 'notes', icon: FileText, label: t.notes },
     { id: 'keypoints', icon: Sparkles, label: t.keypoints },
     { id: 'schedule', icon: CalendarRange, label: t.schedule },
-    { id: 'edu', icon: Swords, label: "Quiz Arena" }, // Updated Label & Icon
+    { id: 'edu', icon: Swords, label: "Quiz Arena" }, 
     { id: 'pomodoro', icon: Timer, label: t.pomodoro },
     { id: 'speedrun', icon: Zap, label: t.speedrun },
     { id: 'report', icon: LineChart, label: t.report },

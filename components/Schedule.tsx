@@ -1,43 +1,137 @@
 
-import React, { useState, useEffect } from 'react';
+// ... (imports remain same)
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ScheduleItem, ChecklistItem, Language, User } from '../types';
-import { Plus, X, Trash2, Clock, BookOpen, Coffee, ChevronLeft, ChevronRight, CheckSquare, Square, Calendar, Settings, Edit2, ListFilter } from 'lucide-react';
+import { ScheduleItem, Language, User } from '../types';
+import { Plus, X, Trash2, ChevronLeft, ChevronRight, Download, GripVertical, CheckSquare, Square, ListTodo, MoreHorizontal, Calendar, Settings, Palette, FileText, LayoutTemplate, Printer, Zap, Activity, Quote, ArrowLeft, Clock } from 'lucide-react';
 
+// ... (Interfaces remain same)
 interface ScheduleProps {
   language: Language;
   user: User;
 }
 
+// --- ADVANCED TYPES ---
+interface SubTask {
+    id: string;
+    text: string;
+    completed: boolean;
+}
+
+interface Category {
+    id: string;
+    label: string;
+    color: string; // Tailwind class or Hex
+    textColor: string;
+}
+
+interface ExtendedScheduleItem extends Omit<ScheduleItem, 'type'> {
+    categoryId: string; // Linked to Category
+    type: string; // Kept for legacy support
+    subTasks: SubTask[];
+    notes?: string;
+}
+
+// ... (Quotes remain same)
+const QUOTES_TR = [
+    "Zihin bir kap değil, tutuşturulması gereken bir ateştir.",
+    "Yarınlar, yorgun ve bezgin kimselere değil, rahatını terk edebilenlere aittir.",
+    "Disiplin, hedefler ile başarı arasındaki köprüdür.",
+    "Büyük işler, sanki hiç ölmeyecekmiş gibi çalışarak başarılır.",
+    "Ertelemek, zamanın hırsızıdır. Şimdi başla.",
+    "Başarı, her gün tekrarlanan küçük çabaların toplamıdır.",
+    "Nereye gittiğini bilen kişiye yol vermek için dünya bir yana çekilir.",
+    "Zorluklar, başarının değerini artıran süslerdir."
+];
+
+const QUOTES_EN = [
+    "The mind is not a vessel to be filled, but a fire to be kindled.",
+    "Discipline is the bridge between goals and accomplishment.",
+    "Great things are done by a series of small things brought together.",
+    "Procrastination is the thief of time. Begin now.",
+    "Success is the sum of small efforts, repeated day in and day out.",
+    "The world steps aside for the man who knows where he is going.",
+    "Difficulties are meant to rouse, not discourage.",
+    "Focus on being productive instead of busy."
+];
+
 export default function Schedule({ language, user }: ScheduleProps) {
   const isTr = language === 'tr';
-  
+  // Shortened Day Labels
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const dayLabels = isTr ? ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   
+  // Grid View Time Slots (2-Hour Blocks) - Expanded to include 06:00
+  const gridTimeSlots = [
+      '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'
+  ];
+
+  // Modal & Day View Time Slots (30 Minute Intervals for precision)
+  const detailedTimeSlots = [];
+  for (let i = 6; i < 24; i++) {
+      detailedTimeSlots.push(`${i.toString().padStart(2, '0')}:00`);
+      detailedTimeSlots.push(`${i.toString().padStart(2, '0')}:30`);
+  }
+
+  // ... (Initial categories and state remain same)
+  const getInitialCategories = (): Category[] => {
+      if (isTr) {
+          return [
+            { id: 'deep-work', label: 'Derin Odak', color: '#171717', textColor: '#FFFFFF' },
+            { id: 'lecture', label: 'Ders / Okul', color: '#E0F2FE', textColor: '#0369A1' }, 
+            { id: 'life', label: 'Yaşam & Mola', color: '#F3F4F6', textColor: '#374151' },
+            { id: 'sport', label: 'Spor', color: '#DCFCE7', textColor: '#15803D' }
+          ];
+      }
+      return [
+        { id: 'deep-work', label: 'Deep Work', color: '#171717', textColor: '#FFFFFF' },
+        { id: 'lecture', label: 'Lecture', color: '#E0F2FE', textColor: '#0369A1' },
+        { id: 'life', label: 'Life', color: '#F3F4F6', textColor: '#374151' },
+        { id: 'sport', label: 'Sport', color: '#DCFCE7', textColor: '#15803D' }
+      ];
+  };
+
   // --- STATE ---
   const [currentDate, setCurrentDate] = useState(new Date()); 
-  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
-  const [checklists, setChecklists] = useState<ChecklistItem[]>([]);
+  const [scheduleItems, setScheduleItems] = useState<ExtendedScheduleItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>(getInitialCategories());
+  const [dailyQuote, setDailyQuote] = useState("");
   
-  // Custom Times State
-  const [timeSlots, setTimeSlots] = useState<string[]>(['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00']);
-  const [isTimeConfigOpen, setIsTimeConfigOpen] = useState(false);
-  const [newTimeInput, setNewTimeInput] = useState("");
+  // View Mode State
+  const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+  const [selectedDay, setSelectedDay] = useState<string>(days[0]); // For Day View
 
-  // UI State
+  // Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatColor, setNewCatColor] = useState("#000000");
+
+  // Print State
+  const [printMode, setPrintMode] = useState<'landscape' | 'portrait'>('landscape');
+  
+  // Drag & Drop
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{day: string, time: string} | null>(null);
+
+  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDayPanel, setSelectedDayPanel] = useState<string | null>(null); 
+  const [editingItem, setEditingItem] = useState<ExtendedScheduleItem | null>(null);
   
   // Form State
-  const currentDayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
-  const [selectedDay, setSelectedDay] = useState(days[currentDayIndex]); 
-  
-  const [selectedTime, setSelectedTime] = useState(timeSlots[0]);
-  const [subject, setSubject] = useState("");
-  const [type, setType] = useState<'lecture' | 'study' | 'break'>('study');
-  const [newTaskText, setNewTaskText] = useState("");
+  const [formDay, setFormDay] = useState(days[0]);
+  const [formTime, setFormTime] = useState(detailedTimeSlots[4]); // Default 08:00
+  const [formSubject, setFormSubject] = useState("");
+  const [formCategory, setFormCategory] = useState<string>('lecture');
+  const [formSubTasks, setFormSubTasks] = useState<SubTask[]>([]);
+  const [newTaskInput, setNewTaskInput] = useState("");
 
-  // Helper to get Week ID (ISO-ish)
+  // Initialize Quote
+  useEffect(() => {
+      const quotes = isTr ? QUOTES_TR : QUOTES_EN;
+      setDailyQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+  }, [isTr]);
+
+  // Week ID Helper
   const getWeekId = (date: Date) => {
       const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
       const dayNum = d.getUTCDay() || 7;
@@ -46,595 +140,702 @@ export default function Schedule({ language, user }: ScheduleProps) {
       const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
       return `${d.getUTCFullYear()}-W${weekNo}`;
   };
-
   const currentWeekId = getWeekId(currentDate);
+  const todayIndex = (new Date().getDay() + 6) % 7; // 0=Monday
 
-  // LOAD DATA
+  // --- PERSISTENCE ---
   useEffect(() => {
-    if (!user) return;
-    
-    const scheduleKey = `neurally_schedule_${user.id}_${currentWeekId}`;
-    const savedSchedule = localStorage.getItem(scheduleKey);
-    const legacyKey = `neurally_schedule_${user.id}`; 
-    
-    if (savedSchedule) {
-        setScheduleItems(JSON.parse(savedSchedule));
-    } else {
-        const legacy = localStorage.getItem(legacyKey);
-        if (legacy) setScheduleItems(JSON.parse(legacy));
-        else setScheduleItems([]);
-    }
-
-    const checklistKey = `neurally_checklists_${user.id}`;
-    const savedChecklists = localStorage.getItem(checklistKey);
-    if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
-
-    const timeKey = `neurally_times_${user.id}`;
-    const savedTimes = localStorage.getItem(timeKey);
-    if (savedTimes) {
-        setTimeSlots(JSON.parse(savedTimes));
-    }
-
-  }, [user, currentWeekId]);
-
-  // SAVE DATA
-  useEffect(() => {
-    if (!user) return;
-    const scheduleKey = `neurally_schedule_${user.id}_${currentWeekId}`;
-    localStorage.setItem(scheduleKey, JSON.stringify(scheduleItems));
-  }, [scheduleItems, user, currentWeekId]);
-
-  useEffect(() => {
-    if (!user) return;
-    const checklistKey = `neurally_checklists_${user.id}`;
-    localStorage.setItem(checklistKey, JSON.stringify(checklists));
-  }, [checklists, user]);
+      if(!user) return;
+      const savedCats = localStorage.getItem(`neurally_cats_${user.id}`);
+      if(savedCats) {
+          setCategories(JSON.parse(savedCats));
+      } else {
+          setCategories(getInitialCategories()); 
+      }
+  }, [user, isTr]); 
 
   useEffect(() => {
       if(!user) return;
-      localStorage.setItem(`neurally_times_${user.id}`, JSON.stringify(timeSlots));
-      if (!timeSlots.includes(selectedTime) && timeSlots.length > 0) {
-          setSelectedTime(timeSlots[0]);
-      }
-  }, [timeSlots, user]);
+      localStorage.setItem(`neurally_cats_${user.id}`, JSON.stringify(categories));
+  }, [categories, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const key = `neurally_planner_v3_${user.id}_${currentWeekId}`;
+    const saved = localStorage.getItem(key);
+    if (saved) setScheduleItems(JSON.parse(saved));
+    else setScheduleItems([]); 
+  }, [user, currentWeekId]);
+
+  useEffect(() => {
+    if (!user) return;
+    const key = `neurally_planner_v3_${user.id}_${currentWeekId}`;
+    localStorage.setItem(key, JSON.stringify(scheduleItems));
+  }, [scheduleItems, user, currentWeekId]);
 
   // --- HANDLERS ---
-  const changeWeek = (direction: -1 | 1) => {
+  const changeWeek = (dir: -1 | 1) => {
       const newDate = new Date(currentDate);
-      newDate.setDate(newDate.getDate() + (direction * 7));
+      newDate.setDate(newDate.getDate() + (dir * 7));
       setCurrentDate(newDate);
-      setSelectedDayPanel(null); 
   };
 
-  const handleAddItem = () => {
-    if (!subject) return;
-    const newItem: ScheduleItem = {
-      id: Date.now().toString(),
-      day: selectedDay,
-      time: selectedTime,
-      subject,
-      type,
-      weekId: currentWeekId
-    };
-    setScheduleItems(prev => [...prev, newItem]);
-    resetForm();
-    setIsModalOpen(false);
+  const handleDayClick = (dayIndex: number) => {
+      setSelectedDay(days[dayIndex]);
+      setViewMode('day');
   };
 
-  const handleDeleteItem = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setScheduleItems(prev => prev.filter(item => item.id !== id));
+  const handlePrint = (mode: 'landscape' | 'portrait') => {
+      setPrintMode(mode);
+      setTimeout(() => window.print(), 100);
   };
 
-  const addTimeSlot = () => {
-      if (newTimeInput && !timeSlots.includes(newTimeInput)) {
-          const newSlots = [...timeSlots, newTimeInput].sort();
-          setTimeSlots(newSlots);
-          setNewTimeInput("");
-      }
-  };
-
-  const removeTimeSlot = (time: string) => {
-      if (timeSlots.length <= 1) {
-          alert(isTr ? "En az bir zaman dilimi kalmalı." : "At least one time slot required.");
-          return;
-      }
-      setTimeSlots(timeSlots.filter(t => t !== time));
-  };
-
-  const getTasksForDay = (dayName: string) => {
-      const key = `${currentWeekId}-${dayName}`;
-      return checklists.filter(c => c.date === key);
-  };
-
-  const addTask = (dayName: string) => {
-      if(!newTaskText.trim()) return;
-      const key = `${currentWeekId}-${dayName}`;
-      const newTask: ChecklistItem = {
-          id: Date.now().toString(),
-          text: newTaskText,
-          completed: false,
-          date: key
+  // ... (Category add/delete handlers remain same)
+  const addCategory = () => {
+      if(!newCatName) return;
+      const isLight = (color: string) => {
+          const hex = color.replace('#', '');
+          const r = parseInt(hex.substring(0, 2), 16);
+          const g = parseInt(hex.substring(2, 4), 16);
+          const b = parseInt(hex.substring(4, 6), 16);
+          return ((r * 0.299 + g * 0.587 + b * 0.114) > 186);
       };
-      setChecklists(prev => [...prev, newTask]);
-      setNewTaskText("");
+
+      const newCat: Category = {
+          id: Date.now().toString(),
+          label: newCatName,
+          color: newCatColor,
+          textColor: isLight(newCatColor) ? '#000000' : '#FFFFFF'
+      };
+      setCategories([...categories, newCat]);
+      setNewCatName("");
   };
 
-  const toggleTask = (taskId: string) => {
-      setChecklists(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
-  };
-  
-  const deleteTask = (taskId: string) => {
-      setChecklists(prev => prev.filter(t => t.id !== taskId));
+  const deleteCategory = (id: string) => {
+      if(categories.length <= 1) return;
+      setCategories(categories.filter(c => c.id !== id));
   };
 
-  const resetForm = () => {
-    setSubject("");
-    setType("study");
+  const openModal = (item?: ExtendedScheduleItem, day?: string, time?: string) => {
+      const defaultCat = categories.find(c => c.id === 'lecture' || c.label.includes('Ders'))?.id || categories[0].id;
+
+      if (item) {
+          setEditingItem(item);
+          setFormDay(item.day);
+          setFormTime(item.time);
+          setFormSubject(item.subject);
+          setFormCategory(item.categoryId || defaultCat);
+          setFormSubTasks(item.subTasks || []);
+      } else {
+          setEditingItem(null);
+          setFormDay(day || (viewMode === 'day' ? selectedDay : days[0]));
+          setFormTime(time || detailedTimeSlots[4]); // Default 08:00
+          setFormSubject("");
+          setFormCategory(defaultCat);
+          setFormSubTasks([]);
+      }
+      setNewTaskInput("");
+      setIsModalOpen(true);
   };
 
-  const openModalForCell = (day: string, time: string) => {
-    setSelectedDay(day);
-    setSelectedTime(time);
-    setIsModalOpen(true);
+  const handleSaveItem = () => {
+      if (!formSubject) return;
+
+      const newItem: ExtendedScheduleItem = {
+          id: editingItem ? editingItem.id : Date.now().toString(),
+          day: formDay,
+          time: formTime,
+          subject: formSubject,
+          categoryId: formCategory,
+          type: 'custom',
+          subTasks: formSubTasks,
+          weekId: currentWeekId
+      };
+
+      if (editingItem) {
+          setScheduleItems(prev => prev.map(i => i.id === editingItem.id ? newItem : i));
+      } else {
+          setScheduleItems(prev => [...prev, newItem]);
+      }
+      setIsModalOpen(false);
   };
 
-  const getItemsForCell = (day: string, time: string) => {
-    return scheduleItems.filter(item => item.day === day && item.time === time);
+  const handleDeleteItem = (id: string) => {
+      if(confirm(isTr ? "Bloğu silmek istediğine emin misin?" : "Delete this block?")) {
+          setScheduleItems(prev => prev.filter(i => i.id !== id));
+          setIsModalOpen(false);
+      }
   };
 
-  // GRID CONFIGURATION: STRICT WIDTHS
-  // 80px for Time Column, equal share (minmax 0) for the 7 days to prevent overflow.
-  const GRID_CLASS = "grid grid-cols-[80px_repeat(7,minmax(0,1fr))]";
+  const addSubTask = () => {
+      if (!newTaskInput.trim()) return;
+      const newTask: SubTask = { id: Date.now().toString(), text: newTaskInput, completed: false };
+      setFormSubTasks([...formSubTasks, newTask]);
+      setNewTaskInput("");
+  };
+
+  const deleteFormSubTask = (id: string) => {
+      setFormSubTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const toggleSubTask = (itemId: string, taskId: string) => {
+      setScheduleItems(prev => prev.map(item => {
+          if (item.id === itemId) {
+              return {
+                  ...item,
+                  subTasks: item.subTasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t)
+              };
+          }
+          return item;
+      }));
+  };
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+      setDraggedItem(id);
+      e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, day: string, time: string) => {
+      e.preventDefault();
+      if (!draggedItem) return;
+      setScheduleItems(prev => prev.map(item => item.id === draggedItem ? { ...item, day, time } : item));
+      setDraggedItem(null);
+      setDragOverCell(null);
+  };
+
+  // Helper to get items specifically for a time slot
+  // Note: Since items can have granular times (08:30) but grid is 2 hours (08:00),
+  // we filter loosely for the grid view
+  const getItemsForGrid = (day: string, timeSlot: string) => {
+      const slotHour = parseInt(timeSlot.split(':')[0]);
+      return scheduleItems.filter(i => {
+          const itemHour = parseInt(i.time.split(':')[0]);
+          return i.day === day && itemHour >= slotHour && itemHour < slotHour + 2;
+      }).sort((a, b) => a.time.localeCompare(b.time)); // SORT BY TIME
+  };
+
+  const getItemsForDay = (day: string) => {
+      return scheduleItems.filter(i => i.day === day).sort((a,b) => a.time.localeCompare(b.time));
+  };
+
+  const getProgress = (item: ExtendedScheduleItem) => {
+      if (!item.subTasks || item.subTasks.length === 0) return 0;
+      const completed = item.subTasks.filter(t => t.completed).length;
+      return (completed / item.subTasks.length) * 100;
+  };
+
+  const getCategoryStyle = (catId: string) => {
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return { background: '#f3f4f6', color: '#000', border: '1px solid #e5e7eb' };
+      return { 
+          background: cat.color, 
+          color: cat.textColor,
+          border: `1px solid ${cat.color}`
+      };
+  };
+
+  // Stats for Gamification
+  const totalBlocks = scheduleItems.length;
+  const completedBlocks = scheduleItems.filter(i => i.subTasks.length > 0 && i.subTasks.every(t => t.completed)).length;
+  const weeklyEfficiency = totalBlocks > 0 ? Math.round((completedBlocks / totalBlocks) * 100) : 0;
 
   return (
-    <div className="flex flex-col h-full max-w-[1920px] mx-auto bg-white relative overflow-hidden">
+    <div className="flex flex-col h-full bg-[#FDFBF9] relative font-sans">
       
-      {/* HEADER SECTION */}
-      <div className="p-6 md:p-8 lg:p-12 border-b border-black flex flex-col md:flex-row justify-between items-start md:items-end bg-white z-10 gap-6">
-          <div className="w-full md:w-auto">
-              <h1 className="font-serif text-3xl md:text-5xl text-black">{isTr ? 'Haftalık Protokol' : 'Weekly Protocol'}</h1>
-              <div className="flex items-center justify-between md:justify-start gap-4 mt-4 md:mt-2 w-full">
+      {/* PRINT STYLES */}
+      <style>{`
+        @media print {
+          @page { size: ${printMode}; margin: 5mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          .planner-grid { border: 2px solid #000 !important; box-shadow: none !important; }
+          .planner-cell { border: 1px solid #ddd !important; page-break-inside: avoid; }
+          .planner-header { background-color: #f0f0f0 !important; color: black !important; border-bottom: 2px solid #000; }
+          .print-portrait-container { display: flex; flex-direction: column; gap: 20px; }
+          .print-portrait-day { border: 2px solid #000; padding: 10px; break-inside: avoid; }
+        }
+      `}</style>
+
+      {/* 1. HEADER */}
+      <div className="no-print px-6 py-4 md:px-8 md:py-6 border-b border-gray-200 bg-white/80 backdrop-blur-md sticky top-0 z-30 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+          
+          <div className="flex flex-col gap-4 max-w-xl">
+              <div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-gray-100 rounded-full border border-gray-200"><ChevronLeft className="w-4 h-4"/></button>
-                    <span className="font-mono text-xs md:text-sm font-bold uppercase tracking-widest min-w-[100px] text-center bg-gray-50 py-1 rounded">
-                        {currentWeekId}
-                    </span>
-                    <button onClick={() => changeWeek(1)} className="p-2 hover:bg-gray-100 rounded-full border border-gray-200"><ChevronRight className="w-4 h-4"/></button>
+                      <h1 className="font-serif text-3xl md:text-4xl text-black tracking-tight">
+                          {isTr ? 'Neural Blueprint' : 'Neural Blueprint'}
+                      </h1>
+                      <div className="bg-black text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">v3.3</div>
                   </div>
                   
-                  {/* Mobile Actions */}
-                  <div className="flex gap-2 md:hidden">
-                      <button onClick={() => setIsTimeConfigOpen(true)} className="p-2 border border-gray-200 rounded-lg"><Settings className="w-4 h-4" /></button>
-                      <button onClick={() => setIsModalOpen(true)} className="p-2 bg-black text-white rounded-lg"><Plus className="w-4 h-4" /></button>
+                  {/* INSPIRATIONAL QUOTE */}
+                  <motion.p 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    className="text-xs text-gray-500 font-serif italic mt-1 flex items-center gap-2"
+                  >
+                      <Quote className="w-3 h-3 text-gray-300 transform scale-x-[-1]" />
+                      {dailyQuote}
+                  </motion.p>
+              </div>
+
+              {/* Navigation */}
+              <div className="flex items-center gap-3">
+                  {viewMode === 'day' && (
+                      <button onClick={() => setViewMode('week')} className="p-1 hover:bg-gray-100 rounded-full mr-2" title="Back to Week">
+                          <ArrowLeft className="w-5 h-5 text-gray-500" />
+                      </button>
+                  )}
+                  <div className="flex items-center bg-gray-100 rounded-full p-1 border border-gray-200 shadow-inner">
+                      <button onClick={() => changeWeek(-1)} className="p-1 hover:bg-white rounded-full shadow-sm transition-all"><ChevronLeft className="w-4 h-4" /></button>
+                      <span className="px-3 font-mono text-xs font-bold w-24 text-center">{currentWeekId}</span>
+                      <button onClick={() => changeWeek(1)} className="p-1 hover:bg-white rounded-full shadow-sm transition-all"><ChevronRight className="w-4 h-4" /></button>
                   </div>
+                  {viewMode === 'day' && (
+                      <span className="text-sm font-bold ml-2 font-serif text-black">{dayLabels[days.indexOf(selectedDay)]}</span>
+                  )}
               </div>
           </div>
-          
-          {/* Desktop Actions */}
-          <div className="hidden md:flex gap-4">
-              <button 
-                  onClick={() => setIsTimeConfigOpen(true)}
-                  className="px-4 py-3 bg-white border border-gray-200 text-gray-500 text-xs font-bold uppercase tracking-widest hover:border-black hover:text-black transition-all flex items-center gap-2"
-              >
-                  <Settings className="w-4 h-4" /> {isTr ? 'Zaman Ayarları' : 'Config Times'}
+
+          {/* RIGHT ACTIONS */}
+          <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto justify-end md:pr-12 lg:pr-32">
+              <button onClick={() => setIsSettingsOpen(true)} className="p-2 md:p-3 bg-white border border-gray-200 rounded-xl hover:border-black transition-all text-gray-500 hover:text-black shadow-sm">
+                  <Settings className="w-4 h-4 md:w-5 md:h-5" />
               </button>
+
+              <div className="relative group">
+                  <button className="px-3 py-2 md:px-4 md:py-3 bg-white border border-gray-200 text-black text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-gray-50 hover:border-black transition-all flex items-center gap-2 shadow-sm">
+                      <Download className="w-4 h-4" /> <span className="hidden sm:inline">PDF</span>
+                  </button>
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden hidden group-hover:block z-50">
+                      <button onClick={() => handlePrint('landscape')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-xs font-bold flex items-center gap-2">
+                          <LayoutTemplate className="w-4 h-4" /> Landscape (Grid)
+                      </button>
+                      <button onClick={() => handlePrint('portrait')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-xs font-bold flex items-center gap-2 border-t border-gray-100">
+                          <FileText className="w-4 h-4" /> Portrait (List)
+                      </button>
+                  </div>
+              </div>
+
               <button 
-                  onClick={() => setIsModalOpen(true)}
-                  className="px-6 py-3 bg-black text-white text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-all flex items-center gap-2"
+                  onClick={() => openModal()}
+                  className="px-4 py-2 md:px-6 md:py-3 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-neutral-800 transition-all flex items-center gap-2 shadow-lg hover:translate-y-[-2px]"
               >
-                  <Plus className="w-4 h-4" /> {isTr ? 'Blok Ekle' : 'Add Block'}
+                  <Plus className="w-4 h-4" /> <span className="hidden sm:inline">{isTr ? 'Blok Ekle' : 'Add Block'}</span>
               </button>
           </div>
       </div>
 
-      <div className={`flex-1 flex flex-col md:flex-row h-full overflow-hidden transition-all duration-300 ${selectedDayPanel ? 'mr-0 md:mr-[400px]' : ''}`}>
-        
-        {/* === MOBILE VIEW (VERTICAL TIMELINE) === */}
-        <div className="lg:hidden flex-1 flex flex-col h-full bg-[#FAFAFA]">
-            
-            {/* Day Selector */}
-            <div className="bg-white border-b border-gray-200 p-2 shadow-sm sticky top-0 z-20">
-                <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
-                    {days.map(day => {
-                        const isSelected = selectedDay === day;
-                        return (
-                            <button
-                                key={day}
-                                onClick={() => setSelectedDay(day)}
-                                className={`
-                                    flex flex-col items-center justify-center min-w-[60px] p-2 rounded-xl transition-all
-                                    ${isSelected ? 'bg-black text-white shadow-md transform scale-105' : 'bg-white border border-gray-100 text-gray-400'}
-                                `}
-                            >
-                                <span className="text-[10px] font-bold uppercase">{day.substring(0,3)}</span>
-                                {getTasksForDay(day).some(t => !t.completed) && (
-                                    <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? 'bg-white' : 'bg-red-500'}`} />
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
-            </div>
+      {/* 2. MAIN VIEW AREA */}
+      <div className="flex-1 overflow-auto bg-[#FDFBF9] p-4 md:p-8 relative custom-scrollbar">
+          
+          {/* --- WEEKLY GRID VIEW --- */}
+          {viewMode === 'week' && (
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="bg-white max-w-[1800px] mx-auto min-h-[600px] shadow-[0_0_50px_rgba(0,0,0,0.03)] border border-gray-200 p-6 md:p-8 relative planner-grid rounded-2xl"
+              >
+                    {/* Dot Grid Background */}
+                    <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
 
-            {/* Checklist Preview */}
-            <div className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center" onClick={() => setSelectedDayPanel(selectedDay)}>
-                <div className="flex items-center gap-2">
-                    <CheckSquare className="w-4 h-4 text-gray-400" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                        {getTasksForDay(selectedDay).filter(t => t.completed).length}/{getTasksForDay(selectedDay).length} Tasks
-                    </span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300" />
-            </div>
-
-            {/* Vertical Timeline */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {timeSlots.map(time => {
-                    const items = getItemsForCell(selectedDay, time);
-                    const isEmpty = items.length === 0;
-                    
-                    return (
-                        <div key={time} className="flex gap-4">
-                            {/* Time Column */}
-                            <div className="w-12 pt-2 text-right flex-shrink-0">
-                                <span className="text-xs font-mono font-bold text-gray-400">{time}</span>
-                            </div>
-
-                            {/* Content Column */}
-                            <div className="flex-1 relative pb-4">
-                                {/* Vertical Line */}
-                                <div className="absolute left-[-17px] top-3 bottom-0 w-px bg-gray-200"></div>
-                                <div className="absolute left-[-20px] top-2.5 w-1.5 h-1.5 rounded-full bg-gray-300 border-2 border-white z-10"></div>
-
-                                {isEmpty ? (
-                                    <button 
-                                        onClick={() => openModalForCell(selectedDay, time)}
-                                        className="w-full h-12 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-500 transition-colors"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                    </button>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {items.map(item => (
-                                            <div 
-                                                key={item.id}
-                                                className={`
-                                                    p-4 rounded-xl shadow-sm border-l-4 relative group
-                                                    ${item.type === 'lecture' ? 'bg-white border-l-blue-500' : item.type === 'study' ? 'bg-black text-white border-l-gray-500' : 'bg-orange-50 border-l-orange-400'}
-                                                `}
-                                            >
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${item.type === 'study' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                        {item.type.toUpperCase()}
-                                                    </span>
-                                                    <button onClick={(e) => handleDeleteItem(item.id, e)} className="text-red-500 opacity-50 hover:opacity-100">
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                                <h4 className={`font-serif text-lg leading-tight ${item.type === 'study' ? 'text-white' : 'text-black'}`}>
-                                                    {item.subject}
-                                                </h4>
-                                            </div>
-                                        ))}
-                                        <button onClick={() => openModalForCell(selectedDay, time)} className="w-full py-2 bg-gray-100 rounded text-gray-400 hover:bg-gray-200 flex justify-center"><Plus className="w-3 h-3" /></button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-                <div className="h-20" />
-            </div>
-        </div>
-
-        {/* === DESKTOP VIEW (GRID) === */}
-        <div className="hidden lg:flex flex-1 overflow-auto custom-scrollbar p-8 bg-white">
-            <div className="min-w-[1000px] border-l border-t border-black select-none w-full">
-            
-            {/* Header Row */}
-            <div className={`${GRID_CLASS} border-b border-black sticky top-0 z-20 shadow-sm bg-white`}>
-                <div className="p-4 border-r border-black bg-gray-50 flex items-center justify-center font-mono text-xs font-bold uppercase text-gray-400">
-                    {isTr ? 'Saat' : 'Time'}
-                </div>
-                {days.map(day => (
-                    <div 
-                        key={day} 
-                        onClick={() => setSelectedDayPanel(day)}
-                        className={`
-                            p-4 border-r border-black font-serif font-bold text-center text-sm uppercase tracking-wide cursor-pointer transition-colors group relative truncate
-                            ${selectedDayPanel === day ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}
-                        `}
-                    >
-                        {day}
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <CheckSquare className="w-3 h-3" />
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Time Rows */}
-            {timeSlots.map(time => (
-                <div key={time} className={`${GRID_CLASS} border-b border-black min-h-[128px]`}>
-                    {/* Time Cell */}
-                    <div className="p-4 border-r border-black bg-gray-50 flex items-start justify-center font-mono text-xs font-bold text-gray-400 pt-6 group cursor-pointer hover:text-black transition-colors">
-                        {time}
-                    </div>
-
-                    {/* Day Cells */}
-                    {days.map(day => {
-                        const items = getItemsForCell(day, time);
-                        return (
-                        <div key={`${day}-${time}`} className="border-r border-black p-2 relative group hover:bg-gray-50 transition-colors flex flex-col gap-2 min-w-0">
-                            {items.map(item => (
-                                <motion.div 
-                                    key={item.id}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className={`
-                                    relative w-full p-2 border border-black flex flex-col justify-between group/item hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-default min-h-[60px]
-                                    ${item.type === 'lecture' ? 'bg-white' : item.type === 'study' ? 'bg-black text-white' : 'bg-gray-100'}
-                                    `}
+                    <div className="relative z-10 grid grid-cols-[50px_repeat(7,1fr)] border-t border-l border-gray-100">
+                        
+                        {/* Header Row */}
+                        <div className="border-b border-r border-gray-100 bg-gray-50/50"></div>
+                        {dayLabels.map((day, i) => {
+                            const isToday = i === todayIndex;
+                            return (
+                                <div 
+                                    key={day} 
+                                    onClick={() => handleDayClick(i)}
+                                    className={`planner-header border-b border-r border-gray-100 p-3 text-center cursor-pointer hover:bg-gray-100 transition-colors bg-white group`}
                                 >
-                                    <div className="flex justify-between items-start">
-                                        <span className={`font-mono text-[9px] opacity-70 uppercase tracking-wider truncate ${item.type === 'study' ? 'text-gray-300' : 'text-gray-500'}`}>
-                                            {item.type.toUpperCase().substring(0,3)}
+                                    <div className="flex flex-col items-center">
+                                        <span className={`font-serif font-bold text-xs md:text-sm uppercase block tracking-wide ${isToday ? 'text-blue-600' : 'text-black'}`}>
+                                            {day}
                                         </span>
-                                        <button 
-                                            onClick={(e) => handleDeleteItem(item.id, e)}
-                                            className="opacity-0 group-hover/item:opacity-100 transition-opacity hover:text-red-500 p-1"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
+                                        {isToday && <div className="w-1 h-1 bg-blue-500 rounded-full mt-1"></div>}
                                     </div>
-                                    <span className={`font-serif text-xs font-bold leading-tight line-clamp-2 break-words ${item.type === 'study' ? 'text-white' : 'text-black'}`}>
-                                        {item.subject}
-                                    </span>
-                                </motion.div>
-                            ))}
-                            
-                            {/* Add Button (Hover) */}
-                            {items.length < 3 && (
-                                <div className="flex-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button 
-                                        onClick={() => openModalForCell(day, time)}
-                                        className="w-6 h-6 rounded-full bg-gray-200 text-gray-500 hover:bg-black hover:text-white flex items-center justify-center transition-colors"
-                                    >
-                                        <Plus className="w-3 h-3" />
-                                    </button>
+                                    <span className="text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">View Day</span>
                                 </div>
-                            )}
-                        </div>
-                        );
-                    })}
-                </div>
-            ))}
-            
-            {/* Empty State */}
-            {timeSlots.length === 0 && (
-                <div className="p-12 text-center text-gray-400 font-mono text-sm border-b border-r border-black">
-                     No time slots defined. Click "Config Times" to add rows.
-                </div>
-            )}
-            </div>
-        </div>
+                            );
+                        })}
+
+                        {/* Time Slots (2-Hour Blocks) */}
+                        {gridTimeSlots.map(time => (
+                            <React.Fragment key={time}>
+                                <div className="border-b border-r border-gray-100 p-2 text-center bg-white planner-cell">
+                                    <span className="font-mono text-[10px] font-bold text-gray-400 block -mt-2">{time}</span>
+                                </div>
+
+                                {days.map((day, i) => {
+                                    const items = getItemsForGrid(day, time);
+                                    const isOver = dragOverCell?.day === day && dragOverCell?.time === time;
+                                    
+                                    return (
+                                        <div 
+                                            key={`${day}-${time}`}
+                                            onDragOver={(e) => { e.preventDefault(); setDragOverCell({ day, time }); }}
+                                            onDrop={(e) => handleDrop(e, day, time)}
+                                            onClick={() => items.length === 0 && openModal(undefined, day, time)}
+                                            className={`planner-cell border-b border-r border-gray-100 min-h-[100px] relative transition-all duration-200 p-1 group/cell flex flex-col gap-1
+                                                ${isOver ? 'bg-blue-50/50 ring-2 ring-inset ring-blue-200' : 'bg-white hover:bg-gray-50'}
+                                            `}
+                                        >
+                                            <AnimatePresence>
+                                                {items.map(item => {
+                                                    const catStyle = getCategoryStyle(item.categoryId);
+                                                    const progress = getProgress(item);
+                                                    
+                                                    return (
+                                                        <motion.div
+                                                            layoutId={item.id}
+                                                            key={item.id}
+                                                            draggable
+                                                            onDragStart={(e) => handleDragStart(e as any, item.id)}
+                                                            onClick={(e) => { e.stopPropagation(); openModal(item); }}
+                                                            initial={{ opacity: 0, scale: 0.9 }}
+                                                            animate={{ opacity: 1, scale: 1 }}
+                                                            style={catStyle}
+                                                            className={`
+                                                                planner-block relative w-full mb-1 rounded-lg p-2 md:p-3 cursor-grab active:cursor-grabbing group select-none flex flex-col gap-1 overflow-hidden shadow-sm hover:shadow-md transition-shadow
+                                                                ${draggedItem === item.id ? 'opacity-50' : 'opacity-100'}
+                                                            `}
+                                                        >
+                                                            <div className="flex justify-between items-start">
+                                                                <div className="flex items-center gap-1 opacity-70">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-current"></div>
+                                                                    <span className="text-[7px] md:text-[8px] font-bold uppercase tracking-wider truncate max-w-[60px]">
+                                                                        {categories.find(c => c.id === item.categoryId)?.label}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-[9px] font-mono opacity-50">{item.time}</span>
+                                                            </div>
+                                                            
+                                                            <p className="font-serif text-xs font-bold leading-tight line-clamp-2 md:line-clamp-3">
+                                                                {item.subject}
+                                                            </p>
+
+                                                            {item.subTasks.length > 0 && (
+                                                                <div className="mt-auto pt-1">
+                                                                    <div className="h-1 w-full bg-black/10 rounded-full overflow-hidden">
+                                                                        <div className="h-full bg-current transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </motion.div>
+                                                    );
+                                                })}
+                                            </AnimatePresence>
+                                            
+                                            {/* Subtle Hover Add Icon */}
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/cell:opacity-100 pointer-events-none transition-opacity">
+                                                {items.length === 0 && <Plus className="w-4 h-4 text-gray-300" />}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </React.Fragment>
+                        ))}
+                    </div>
+              </motion.div>
+          )}
+
+          {/* ... (Single Day View and Print layout remain same) ... */}
+          {/* --- SINGLE DAY FOCUS VIEW --- */}
+          {viewMode === 'day' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="max-w-4xl mx-auto bg-white rounded-3xl p-8 shadow-xl border border-gray-100 min-h-[800px] relative"
+              >
+                  <div className="flex justify-between items-center mb-8 border-b border-gray-100 pb-4">
+                      <div>
+                          <h2 className="font-serif text-4xl text-black">{dayLabels[days.indexOf(selectedDay)]} Agenda</h2>
+                          <p className="text-gray-400 font-mono text-xs uppercase tracking-widest mt-1">Detailed Timeline</p>
+                      </div>
+                      <button onClick={() => openModal(undefined, selectedDay)} className="px-6 py-3 bg-black text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-all flex items-center gap-2">
+                          <Plus className="w-4 h-4" /> {isTr ? 'Hızlı Ekle' : 'Quick Add'}
+                      </button>
+                  </div>
+
+                  <div className="space-y-4">
+                      {getItemsForDay(selectedDay).length === 0 && (
+                          <div className="text-center py-20 text-gray-300">
+                              <p>{isTr ? 'Bu gün için plan yok.' : 'No plans for this day.'}</p>
+                          </div>
+                      )}
+                      
+                      {getItemsForDay(selectedDay).map((item) => {
+                          const catStyle = getCategoryStyle(item.categoryId);
+                          return (
+                              <div key={item.id} className="flex gap-4 group" onClick={() => openModal(item)}>
+                                  <div className="w-20 pt-2 text-right">
+                                      <span className="font-mono text-sm font-bold text-gray-900">{item.time}</span>
+                                  </div>
+                                  <div 
+                                    className="flex-1 p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md"
+                                    style={catStyle}
+                                  >
+                                      <div className="flex justify-between items-start mb-2">
+                                          <span className="text-[10px] uppercase font-bold tracking-widest opacity-70">
+                                              {categories.find(c => c.id === item.categoryId)?.label}
+                                          </span>
+                                          <MoreHorizontal className="w-4 h-4 opacity-0 group-hover:opacity-50" />
+                                      </div>
+                                      <h3 className="font-serif text-xl font-bold mb-2">{item.subject}</h3>
+                                      {item.subTasks.length > 0 && (
+                                          <div className="space-y-1">
+                                              {item.subTasks.map(st => (
+                                                  <div key={st.id} className="flex items-center gap-2 text-xs opacity-80">
+                                                      <div className={`w-3 h-3 border border-current flex items-center justify-center ${st.completed ? 'bg-current' : ''}`}>
+                                                          {st.completed && <CheckSquare className="w-2 h-2 text-white" />}
+                                                      </div>
+                                                      <span className={st.completed ? 'line-through' : ''}>{st.text}</span>
+                                                  </div>
+                                              ))}
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          );
+                      })}
+                  </div>
+              </motion.div>
+          )}
+
+          {/* PORTRAIT PRINT LAYOUT (Hidden on Screen) */}
+          <div className={`hidden ${printMode === 'portrait' ? 'print:block' : ''} bg-white p-8`}>
+              <div className="mb-8 border-b-2 border-black pb-4">
+                  <h1 className="text-3xl font-serif font-bold">NEURAL AGENDA</h1>
+                  <span className="font-mono text-sm">{currentWeekId} // {user.name}</span>
+              </div>
+              <div className="print-portrait-container space-y-6">
+                  {days.map(day => {
+                      const dayItems = scheduleItems.filter(i => i.day === day).sort((a,b) => a.time.localeCompare(b.time));
+                      if (dayItems.length === 0) return null;
+                      return (
+                          <div key={day} className="print-portrait-day">
+                              <h3 className="font-serif text-xl font-bold border-b border-black pb-2 mb-3 bg-gray-100 p-2">{day}</h3>
+                              <div className="space-y-2">
+                                  {dayItems.map(item => (
+                                      <div key={item.id} className="flex gap-4 items-center border-b border-gray-100 pb-2">
+                                          <span className="font-mono text-sm font-bold w-16">{item.time}</span>
+                                          <div className="flex-1">
+                                              <div className="font-bold text-sm">{item.subject}</div>
+                                              <div className="text-xs text-gray-500 uppercase tracking-widest">{categories.find(c=>c.id===item.categoryId)?.label}</div>
+                                              {item.subTasks.length > 0 && (
+                                                  <div className="ml-4 mt-1 space-y-1">
+                                                      {item.subTasks.map(st => (
+                                                          <div key={st.id} className="flex items-center gap-2 text-xs">
+                                                              <div className="w-3 h-3 border border-black"></div> {st.text}
+                                                          </div>
+                                                      ))}
+                                                  </div>
+                                              )}
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+
       </div>
 
-      {/* TIME CONFIG MODAL */}
+      {/* ... (Modals remain same) ... */}
+      {/* CATEGORY SETTINGS MODAL */}
       <AnimatePresence>
-          {isTimeConfigOpen && (
-              <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          {isSettingsOpen && (
+              <motion.div 
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 no-print"
+                  onClick={() => setIsSettingsOpen(false)}
+              >
                   <motion.div 
-                     initial={{ scale: 0.95 }}
-                     animate={{ scale: 1 }}
-                     exit={{ scale: 0.95 }}
-                     className="bg-white border border-black p-8 w-full max-w-sm shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-2xl"
+                      initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl p-8"
                   >
                       <div className="flex justify-between items-center mb-6">
-                          <h3 className="font-serif text-xl">{isTr ? 'Zaman Çizelgesi' : 'Time Slots'}</h3>
-                          <button onClick={() => setIsTimeConfigOpen(false)}><X className="w-5 h-5" /></button>
+                          <h3 className="font-serif text-2xl font-bold flex items-center gap-2">
+                              <Palette className="w-6 h-6" /> {isTr ? 'Kategoriler' : 'Categories'}
+                          </h3>
+                          <button onClick={() => setIsSettingsOpen(false)}><X className="w-5 h-5" /></button>
                       </div>
-                      
-                      <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto custom-scrollbar">
-                          {timeSlots.map(time => (
-                              <div key={time} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-100 rounded-lg">
-                                  <span className="font-mono font-bold text-sm">{time}</span>
-                                  <button onClick={() => removeTimeSlot(time)} className="text-gray-400 hover:text-red-500">
+
+                      <div className="space-y-4 mb-8 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                          {categories.map(cat => (
+                              <div key={cat.id} className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100 group">
+                                  <div className="w-8 h-8 rounded-full border shadow-sm" style={{ backgroundColor: cat.color }}></div>
+                                  <span className="flex-1 font-bold text-sm">{cat.label}</span>
+                                  <button onClick={() => deleteCategory(cat.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <Trash2 className="w-4 h-4" />
                                   </button>
                               </div>
                           ))}
                       </div>
 
-                      <div className="flex gap-2">
-                          <input 
-                              type="time"
-                              value={newTimeInput}
-                              onChange={(e) => setNewTimeInput(e.target.value)}
-                              className="flex-1 p-2 border border-gray-300 font-mono text-sm focus:border-black outline-none rounded-lg"
-                          />
-                          <button 
-                              onClick={addTimeSlot}
-                              disabled={!newTimeInput}
-                              className="px-4 bg-black text-white font-bold uppercase text-xs hover:bg-gray-800 disabled:opacity-50 rounded-lg"
-                          >
-                              {isTr ? 'Ekle' : 'Add'}
-                          </button>
+                      <div className="border-t border-gray-100 pt-6">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 block">Yeni Kategori Ekle</label>
+                          <div className="flex gap-2">
+                              <input 
+                                  value={newCatName} 
+                                  onChange={(e) => setNewCatName(e.target.value)} 
+                                  placeholder="Kategori Adı" 
+                                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:border-black outline-none"
+                              />
+                              <input 
+                                  type="color" 
+                                  value={newCatColor} 
+                                  onChange={(e) => setNewCatColor(e.target.value)} 
+                                  className="w-12 h-10 rounded-xl border-none p-0 cursor-pointer overflow-hidden"
+                              />
+                              <button onClick={addCategory} className="bg-black text-white p-2 rounded-xl">
+                                  <Plus className="w-5 h-5" />
+                              </button>
+                          </div>
                       </div>
                   </motion.div>
-              </div>
+              </motion.div>
           )}
       </AnimatePresence>
 
-      {/* SLIDE-OVER CHECKLIST PANEL (Responsive) */}
-      <AnimatePresence>
-          {selectedDayPanel && (
-              <>
-                {/* Backdrop for Mobile */}
-                <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    onClick={() => setSelectedDayPanel(null)}
-                    className="fixed inset-0 bg-black/50 z-[60] md:hidden"
-                />
-                
-                <motion.div 
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="fixed md:absolute top-0 right-0 h-full w-[85%] md:w-[400px] bg-white border-l border-black shadow-2xl z-[70] flex flex-col"
-                >
-                    {/* Panel Header */}
-                    <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-black text-white">
-                        <div>
-                            <h3 className="font-serif text-2xl">{selectedDayPanel}</h3>
-                            <p className="font-mono text-xs text-gray-400 mt-1 uppercase tracking-widest">Daily Objectives</p>
-                        </div>
-                        <button onClick={() => setSelectedDayPanel(null)} className="hover:rotate-90 transition-transform">
-                            <X className="w-6 h-6" />
-                        </button>
-                    </div>
-
-                    {/* Task List */}
-                    <div className="flex-1 overflow-y-auto p-8">
-                        <div className="space-y-4">
-                            {getTasksForDay(selectedDayPanel).map(task => (
-                                <motion.div 
-                                    key={task.id}
-                                    layout
-                                    className="flex items-start gap-3 group"
-                                >
-                                    <button onClick={() => toggleTask(task.id)} className="mt-0.5">
-                                        {task.completed ? <CheckSquare className="w-5 h-5 text-green-500" /> : <Square className="w-5 h-5 text-gray-300 group-hover:text-black" />}
-                                    </button>
-                                    <span className={`flex-1 text-sm ${task.completed ? 'line-through text-gray-300' : 'text-black'}`}>
-                                        {task.text}
-                                    </span>
-                                    <button onClick={() => deleteTask(task.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity">
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </motion.div>
-                            ))}
-                            
-                            {getTasksForDay(selectedDayPanel).length === 0 && (
-                                <div className="text-center py-12 text-gray-300">
-                                    <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                                    <p className="text-xs uppercase tracking-widest">No tasks defined</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Add Task Input */}
-                    <div className="p-6 border-t border-gray-100 bg-gray-50">
-                        <div className="flex gap-2">
-                            <input 
-                                value={newTaskText}
-                                onChange={(e) => setNewTaskText(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && addTask(selectedDayPanel)}
-                                placeholder="Add micro-task..."
-                                className="flex-1 bg-white border border-gray-200 px-3 py-2 text-sm focus:border-black outline-none rounded-lg"
-                            />
-                            <button 
-                                onClick={() => addTask(selectedDayPanel)}
-                                className="bg-black text-white px-4 py-2 text-xs font-bold uppercase hover:bg-gray-800 rounded-lg"
-                            >
-                                Add
-                            </button>
-                        </div>
-                    </div>
-                </motion.div>
-              </>
-          )}
-      </AnimatePresence>
-
-      {/* ADD BLOCK MODAL */}
+      {/* TASK EDITOR MODAL */}
       <AnimatePresence>
         {isModalOpen && (
             <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 no-print"
                 onClick={() => setIsModalOpen(false)}
             >
                 <motion.div 
-                    initial={{ scale: 0.95, y: 10 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.95, y: 10 }}
-                    className="bg-white border border-black p-8 w-full max-w-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-2xl"
+                    initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
                     onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
                 >
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-serif text-2xl">{isTr ? 'Yeni Blok Ekle' : 'Add New Block'}</h3>
-                        <button onClick={() => setIsModalOpen(false)}><X className="w-6 h-6" /></button>
+                    <div className="bg-[#FAFAFA] p-6 md:p-8 border-b border-gray-100 flex justify-between items-center shrink-0">
+                        <div>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">
+                                {isTr ? 'PLANLAMA MOTORU' : 'PLANNING ENGINE'}
+                            </span>
+                            <h3 className="font-serif text-2xl font-bold">
+                                {editingItem ? (isTr ? 'Bloğu Düzenle' : 'Edit Block') : (isTr ? 'Yeni Blok' : 'New Block')}
+                            </h3>
+                        </div>
+                        <button onClick={() => setIsModalOpen(false)} className="bg-white p-2 rounded-full border border-gray-200 hover:border-black transition-colors"><X className="w-5 h-5" /></button>
                     </div>
-
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-widest block mb-2">{isTr ? 'Gün' : 'Day'}</label>
-                                <select 
-                                    value={selectedDay}
-                                    onChange={(e) => setSelectedDay(e.target.value)}
-                                    className="w-full p-3 bg-gray-50 border border-gray-200 font-mono text-xs focus:border-black outline-none rounded-lg"
-                                >
-                                    {days.map(d => <option key={d} value={d}>{d}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-widest block mb-2">{isTr ? 'Saat' : 'Time'}</label>
-                                <select 
-                                    value={selectedTime}
-                                    onChange={(e) => setSelectedTime(e.target.value)}
-                                    className="w-full p-3 bg-gray-50 border border-gray-200 font-mono text-xs focus:border-black outline-none rounded-lg"
-                                >
-                                    {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                             <label className="text-[10px] font-bold uppercase tracking-widest block mb-2">{isTr ? 'Konu / Ders' : 'Subject / Task'}</label>
-                             <input 
-                                type="text"
-                                value={subject}
-                                onChange={(e) => setSubject(e.target.value)}
-                                placeholder={isTr ? "Örn: Matematik" : "e.g. Math"}
-                                className="w-full p-3 border border-gray-200 font-serif text-lg focus:border-black outline-none rounded-lg"
+                    
+                    <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1">
+                        
+                        <div className="space-y-4">
+                            <input 
+                                value={formSubject}
+                                onChange={(e) => setFormSubject(e.target.value)}
+                                className="w-full p-4 border border-gray-200 rounded-2xl text-xl font-serif focus:border-black outline-none bg-white transition-shadow shadow-sm focus:shadow-md"
+                                placeholder={isTr ? "Ne üzerinde çalışacaksın?" : "Task Name..."}
                                 autoFocus
-                             />
+                            />
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 block">{isTr ? 'Gün' : 'Day'}</label>
+                                    <select value={formDay} onChange={(e) => setFormDay(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none">
+                                        {days.map((d, i) => <option key={d} value={d}>{dayLabels[i]}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 block flex items-center gap-2"><Clock className="w-3 h-3"/> {isTr ? 'Başlangıç Saati' : 'Start Time'}</label>
+                                    <select value={formTime} onChange={(e) => setFormTime(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none">
+                                        {detailedTimeSlots.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 block">{isTr ? 'Kategori' : 'Category'}</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {categories.map((cat) => (
+                                        <button 
+                                            key={cat.id}
+                                            onClick={() => setFormCategory(cat.id)}
+                                            className={`px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all border flex items-center gap-2
+                                                ${formCategory === cat.id ? 'ring-2 ring-offset-1 ring-black' : 'border-gray-200 text-gray-500 hover:border-black'}
+                                            `}
+                                            style={formCategory === cat.id ? { backgroundColor: cat.color, color: cat.textColor, borderColor: cat.color } : {}}
+                                        >
+                                            <div className="w-2 h-2 rounded-full bg-current"></div>
+                                            {cat.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest block mb-2">{isTr ? 'Aktivite Türü' : 'Activity Type'}</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {[
-                                    { id: 'lecture', label: isTr ? 'Ders' : 'Lecture', icon: BookOpen },
-                                    { id: 'study', label: isTr ? 'Etüt' : 'Study', icon: Clock },
-                                    { id: 'break', label: isTr ? 'Mola' : 'Break', icon: Coffee }
-                                ].map((t) => (
-                                    <button
-                                        key={t.id}
-                                        onClick={() => setType(t.id as any)}
-                                        className={`p-3 border flex flex-col items-center gap-2 transition-all rounded-lg ${type === t.id ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-200 hover:border-black'}`}
-                                    >
-                                        <t.icon className="w-4 h-4" />
-                                        <span className="text-[10px] font-bold uppercase tracking-wider">{t.label}</span>
-                                    </button>
+                        {/* Subtasks */}
+                        <div className="border-t border-gray-100 pt-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                                    <ListTodo className="w-3 h-3" /> {isTr ? 'Alt Görevler' : 'Subtasks'}
+                                </label>
+                                <span className="text-[10px] font-mono text-gray-400">{formSubTasks.filter(t=>t.completed).length}/{formSubTasks.length}</span>
+                            </div>
+
+                            <div className="space-y-2 mb-4">
+                                {formSubTasks.map(task => (
+                                    <div key={task.id} className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100 group">
+                                        <button 
+                                            onClick={() => setFormSubTasks(prev => prev.map(t => t.id === task.id ? {...t, completed: !t.completed} : t))}
+                                            className={`text-gray-400 hover:text-black transition-colors ${task.completed ? 'text-green-500' : ''}`}
+                                        >
+                                            {task.completed ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+                                        </button>
+                                        <span className={`flex-1 text-sm ${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                            {task.text}
+                                        </span>
+                                        <button onClick={() => deleteFormSubTask(task.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
+
+                            <div className="flex gap-2">
+                                <input 
+                                    value={newTaskInput}
+                                    onChange={(e) => setNewTaskInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && addSubTask()}
+                                    className="flex-1 p-3 text-sm border border-gray-200 rounded-xl focus:border-black outline-none"
+                                    placeholder={isTr ? "+ Görev Ekle" : "+ Add Subtask"}
+                                />
+                                <button onClick={addSubTask} className="p-3 bg-gray-100 rounded-xl hover:bg-black hover:text-white transition-colors">
+                                    <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
 
-                        <button 
-                            onClick={handleAddItem}
-                            className="w-full py-4 bg-black text-white font-bold uppercase tracking-widest hover:bg-gray-800 transition-all mt-4 rounded-lg"
-                        >
-                            {isTr ? 'Programa Kaydet' : 'Save to Schedule'}
-                        </button>
                     </div>
 
+                    {/* Footer */}
+                    <div className="p-6 border-t border-gray-100 flex justify-between bg-gray-50 shrink-0">
+                        {editingItem ? (
+                            <button 
+                                onClick={() => handleDeleteItem(editingItem.id)}
+                                className="px-6 py-3 bg-white border border-red-200 text-red-500 font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-red-50 transition-all"
+                            >
+                                {isTr ? 'Sil' : 'Delete'}
+                            </button>
+                        ) : ( <div></div> )}
+                        
+                        <button 
+                            onClick={handleSaveItem}
+                            className="px-8 py-3 bg-black text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-neutral-800 transition-all shadow-lg flex items-center gap-2"
+                        >
+                            <Calendar className="w-4 h-4" /> {isTr ? 'Kaydet' : 'Save'}
+                        </button>
+                    </div>
                 </motion.div>
             </motion.div>
         )}

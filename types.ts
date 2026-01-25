@@ -8,6 +8,7 @@ export interface Option {
 export interface Question {
   id: number;
   text: string;
+  context?: string; // New field for passage/paragraph content
   options: Option[];
   rationale: string;
   topicTag: string;
@@ -121,6 +122,6 @@ export interface LangNode {
 
 export type QuizState = 'intro' | 'active' | 'summary' | 'completed';
 
-export type AppView = 'login' | 'dashboard' | 'quiz' | 'flashcards' | 'pomodoro' | 'notes' | 'report' | 'about' | 'schedule' | 'keypoints' | 'speedrun' | 'neurallist' | 'podcast' | 'edu' | 'language';
+export type AppView = 'login' | 'dashboard' | 'quiz' | 'flashcards' | 'pomodoro' | 'notes' | 'report' | 'about' | 'schedule' | 'keypoints' | 'speedrun' | 'neurallist' | 'podcast' | 'edu' | 'language' | 'hub';
 
 export type Language = 'tr' | 'en';

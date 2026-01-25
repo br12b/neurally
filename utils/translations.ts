@@ -18,6 +18,7 @@ export const translations = {
       podcast: "Neural Podcast",
       language: "Dil Rotası",
       edu: "Sınıfım",
+      hub: "Study Hub", // New
       about: "Hakkında & Rehber"
     },
     dashboard: {
@@ -50,6 +51,7 @@ export const translations = {
       podcast: "Neural Podcast",
       language: "Language Path",
       edu: "Classroom",
+      hub: "Study Hub", // New
       about: "About & Guide"
     },
     dashboard: {

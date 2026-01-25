@@ -48,6 +48,17 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
 
   const currentDate = new Date().toLocaleDateString('en-GB').toUpperCase(); 
 
+  // Helper to strip markdown symbols
+  const cleanText = (text: string) => {
+      if (!text) return "";
+      return text
+        .replace(/\*\*/g, '') // Bold
+        .replace(/\*/g, '')   // Italic
+        .replace(/__/g, '')   // Underline
+        .replace(/`/g, '')    // Code
+        .trim();
+  };
+
   const generateQuestions = async (content: string, isPdf: boolean = false, pdfData: string | null = null) => {
     // 1. SECURITY CHECK: Rate Limit
     if (user.tier === 'Free') { // Free users are rate limited
@@ -78,11 +89,13 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       let promptContent: any = "";
       let parts: any[] = [];
       
+      // Updated Structure with 'context'
       const jsonStructure = `
       [
         {
           "id": 1,
           "topicTag": "Subject",
+          "context": "Optional: If the question refers to a specific paragraph in the source, put that full paragraph here. Otherwise leave empty.",
           "text": "Question text here?",
           "options": [
             { "id": "a", "text": "Option A", "isCorrect": false },
@@ -93,12 +106,16 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       ]
       `;
 
-      // UPDATED PROMPT: More General
+      // UPDATED PROMPT: Specific instructions for Context & Formatting
       const systemPrompt = `Generate 10 Active Recall multiple-choice questions based strictly on the provided content. 
-      CRITICAL INSTRUCTION: Detect the language of the provided content (e.g. Turkish or English) and generate ALL output (questions, options, rationales) IN THAT SAME LANGUAGE.
-      Focus on critical thinking, deep analysis, and conceptual understanding suitable for an academic level.
-      Return ONLY a raw JSON array. Do not wrap in markdown code blocks.
-      Strictly follow this JSON structure for every item: ${jsonStructure}`;
+      
+      CRITICAL INSTRUCTIONS:
+      1. LANGUAGE: Detect the language of the provided content and generate ALL output IN THAT SAME LANGUAGE.
+      2. FORMATTING: Return PLAIN TEXT only. Do NOT use markdown (no **bold**, no *italics*).
+      3. CONTEXT: If a question asks about a specific part of the text (e.g., "In the second paragraph...", "According to the text..."), extract that specific sentence/paragraph and place it in the "context" field. Do NOT leave the user guessing which part of the text you mean.
+      4. OUTPUT: Return ONLY a raw JSON array. Do not wrap in markdown code blocks.
+      
+      Strictly follow this JSON structure: ${jsonStructure}`;
 
       if (isPdf && pdfData) {
           parts = [
@@ -122,9 +139,20 @@ export default function Dashboard({ onQuestionsGenerated, user, language }: Dash
       });
       
       if (response.text) {
-          const cleanText = response.text.replace(/```json\n?|\n?```/g, "").trim();
-          const generatedQuestions = JSON.parse(cleanText) as Question[];
-          onQuestionsGenerated(generatedQuestions.map((q, index) => ({ ...q, id: index + 1 })));
+          const cleanJson = response.text.replace(/```json\n?|\n?```/g, "").trim();
+          const rawQuestions = JSON.parse(cleanJson) as Question[];
+          
+          // Post-process to remove any remaining markdown artifacts
+          const cleanedQuestions = rawQuestions.map((q, index) => ({
+              ...q,
+              id: index + 1,
+              text: cleanText(q.text),
+              context: cleanText(q.context || ""),
+              rationale: cleanText(q.rationale),
+              options: q.options.map(o => ({ ...o, text: cleanText(o.text) }))
+          }));
+
+          onQuestionsGenerated(cleanedQuestions);
       } else {
           throw new Error("No text returned from AI");
       }

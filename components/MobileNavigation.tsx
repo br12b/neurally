@@ -18,7 +18,8 @@ import {
   HelpCircle,
   Swords,
   Languages,
-  LogOut
+  LogOut,
+  Globe // New Icon
 } from 'lucide-react';
 import { AppView, User } from '../types';
 
@@ -42,6 +43,7 @@ export default function MobileNavigation({ activeView, onChangeView, user, onLog
   // Full menu list for the drawer
   const allMenuItems = [
     { id: 'dashboard', icon: LayoutGrid, label: 'Analiz Merkezi' },
+    { id: 'hub', icon: Globe, label: 'Global Study Hub' }, // New Item
     { id: 'quiz', icon: BrainCircuit, label: 'Aktif Hatırlama' },
     { id: 'language', icon: Languages, label: 'Dil Rotası' },
     { id: 'podcast', icon: AudioLines, label: 'Neural Podcast' },

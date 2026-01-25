@@ -17,6 +17,7 @@ import NeuroMap from './components/NeuroMap';
 import NeuralPodcast from './components/NeuralPodcast';
 import EduClassroom from './components/EduClassroom';
 import LanguagePath from './components/LanguagePath';
+import TheConstruct from './components/TheConstruct'; // Import new Hub
 import BackgroundFlow from './components/BackgroundFlow'; 
 import { AppView, Question, User, Language, Flashcard, UserStats } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -374,6 +375,7 @@ function App() {
               {activeView === 'podcast' && <NeuralPodcast language={language} />}
               {activeView === 'edu' && <EduClassroom language={language} user={user} />}
               {activeView === 'language' && <LanguagePath language={language} onAddXP={handleAddXP} />}
+              {activeView === 'hub' && <TheConstruct language={language} user={user} />} {/* New Route */}
               {activeView === 'pomodoro' && <Pomodoro />}
               {activeView === 'notes' && <SmartNotes user={user} />}
               {activeView === 'report' && <Report user={user} language={language} />}
